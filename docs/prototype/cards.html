@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Gen UI cards — first pass</title>
+<style>
+:root{--subtle:#7F7F7F;--default:#5D5D5D;--strong:#292929;--selected:#F5F5F5;--border:#F2F2F2;--bg:#FFFFFF;--line:#E6E6E6;
+--red:#C2362B;--redbg:#FDF1F0;--redline:#F5D3CF;
+--font:"SF Pro Text","SF Pro",-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",system-ui,sans-serif}
+*{box-sizing:border-box;margin:0}
+body{font:400 13px/1.5 var(--font);color:var(--default);background:var(--bg);padding:40px 32px 80px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto}
+h1{font-size:22px;font-weight:500;color:var(--strong);letter-spacing:-.01em}
+.sub{color:var(--subtle);margin-top:4px;max-width:720px}
+.lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--subtle);margin:40px 0 12px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.card{border:1px solid var(--line);border-radius:12px;padding:18px 20px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+.q{font-size:12px;color:var(--subtle);display:flex;justify-content:space-between;margin-bottom:12px}
+.from{display:flex;gap:10px;align-items:center;margin-bottom:10px}
+.av{width:28px;height:28px;border-radius:50%;background:var(--selected);display:grid;place-items:center;font-weight:500;color:var(--strong);font-size:12px}
+.from b{color:var(--strong);font-weight:500;display:block;line-height:1.3}
+.from span{font-size:12px;color:var(--subtle)}
+.subj{font-size:15px;font-weight:500;color:var(--strong);margin-bottom:6px}
+.body{color:var(--default);border-left:2px solid var(--border);padding-left:10px;margin-bottom:14px}
+.why{font-size:12px;color:var(--subtle);margin-bottom:12px}
+.why b{color:var(--default);font-weight:500}
+.opts{display:flex;flex-direction:column;gap:6px}
+.opt{display:flex;justify-content:space-between;align-items:center;border:1px solid var(--line);border-radius:8px;padding:8px 12px;cursor:pointer}
+.opt:hover{background:var(--selected)}
+.opt.top{border-color:var(--strong)}
+.opt b{font-weight:500;color:var(--strong)}
+.pct{font-size:12px;color:var(--subtle);display:flex;align-items:center;gap:8px}
+.m{width:60px;height:2px;background:var(--border);border-radius:2px;overflow:hidden}.m u{display:block;height:100%;background:var(--default)}
+.row{display:flex;gap:8px;margin-top:10px}
+.btn{font:500 13px var(--font);border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 12px;color:var(--strong);cursor:pointer}
+.btn.dark{background:var(--strong);color:#fff;border-color:var(--strong)}
+.btn.ghost{border-color:transparent;color:var(--subtle)}
+.imp{border-color:var(--redline);background:var(--redbg)}
+.imp .q{color:var(--red)}
+.imp .body{border-left-color:var(--redline)}
+.tldr{background:#fff;border:1px solid var(--redline);border-radius:8px;padding:10px 12px;margin-bottom:14px}
+.tldr li{margin-left:16px}
+.board{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.col{background:var(--selected);border-radius:10px;padding:10px}
+.col h4{font-size:12px;font-weight:500;color:var(--strong);display:flex;justify-content:space-between;margin-bottom:8px}
+.col h4 i{font-style:normal;color:var(--subtle);font-weight:400}
+.chip{background:#fff;border-radius:7px;padding:7px 9px;margin-bottom:6px;font-size:12px;border:1px solid var(--border)}
+.chip b{display:block;color:var(--strong);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip span{color:var(--subtle)}
+.chip.you{border-left:2px solid var(--strong)}
+.chip.red{border-left:2px solid var(--red)}
+.legend{font-size:12px;color:var(--subtle);margin-top:10px}
+</style></head><body><div class="wrap">
+<h1>First pass: what pops up while a batch runs</h1>
+<p class="sub">Monochrome, same look as the inbox-triage report. Fake emails. Three pieces: a "where does this go?" card, a red "you should actually read this" card, and the end-of-batch board. React to anything — what's missing, what's noise.</p>
+
+<div class="lbl">A · Jev isn't sure where it goes</div>
+<div class="grid">
+<div class="card">
+  <div class="q"><span>Where should this go?</span><span>Batch 3 · 4 of 20</span></div>
+  <div class="from"><div class="av">C</div><div><b>Chase</b><span>no-reply@alertsp.chase.com · 2 days ago</span></div></div>
+  <div class="subj">Your September statement is ready</div>
+  <div class="body">Your statement for the account ending in 4417 is now available. Your new balance is $1,284.19 and your minimum payment is due Nov 14…</div>
+  <div class="why"><b>Why I'm asking:</b> looks routine, but it has a due date.</div>
+  <div class="opts">
+    <div class="opt top"><b>Finance / Statements</b><span class="pct"><span class="m"><u style="width:71%"></u></span>71%</span></div>
+    <div class="opt"><b>Finance / Bills due</b><span class="pct"><span class="m"><u style="width:19%"></u></span>19%</span></div>
+    <div class="opt"><b>Archive</b><span class="pct"><span class="m"><u style="width:6%"></u></span>6%</span></div>
+  </div>
+  <div class="row"><button class="btn">Other folder…</button><button class="btn">Keep in inbox</button><button class="btn ghost">Open in Gmail ↗</button></div>
+</div>
+
+<div class="card imp">
+  <div class="q"><span>● Important — read this one</span><span>Batch 3 · 9 of 20</span></div>
+  <div class="from"><div class="av">P</div><div><b>Priya (landlord)</b><span>priya.r@… · yesterday</span></div></div>
+  <div class="subj">Water shutoff Thursday + lease renewal</div>
+  <div class="tldr"><ul><li>Water off Thu Nov 5, 9am–1pm</li><li>Lease renewal form due Nov 20</li><li>Asks you to confirm by reply</li></ul></div>
+  <div class="body">Hi! Quick heads up, the city is doing work on the main line so water will be off Thursday morning. Also attaching the renewal…</div>
+  <div class="row"><button class="btn dark">Got it — file it</button><button class="btn">Keep in inbox</button><button class="btn">Star / needs reply</button><button class="btn ghost">Open ↗</button></div>
+</div>
+</div>
+
+<div class="lbl">B · End of batch — what went where</div>
+<div class="board">
+  <div class="col"><h4>Archived <i>11</i></h4>
+    <div class="chip"><b>50% off fall boots</b><span>Nordstrom</span></div>
+    <div class="chip"><b>Your weekly digest</b><span>Medium</span></div>
+    <div class="chip"><b>[gp] CI passed on main</b><span>GitHub</span></div>
+    <div class="chip"><span>+ 8 more</span></div></div>
+  <div class="col"><h4>Finance / Statements <i>3</i></h4>
+    <div class="chip you"><b>Your September statement…</b><span>Chase · you chose</span></div>
+    <div class="chip"><b>Paystub available</b><span>ADP</span></div>
+    <div class="chip"><b>Venmo monthly summary</b><span>Venmo</span></div></div>
+  <div class="col"><h4>Travel <i>2</i></h4>
+    <div class="chip"><b>Your trip to Austin</b><span>Delta</span></div>
+    <div class="chip"><b>Booking confirmed</b><span>Airbnb</span></div></div>
+  <div class="col"><h4>Still in inbox <i>4</i></h4>
+    <div class="chip red"><b>Water shutoff Thursday…</b><span>Priya · read, needs reply</span></div>
+    <div class="chip you"><b>Re: coffee next week?</b><span>Sam · you chose</span></div>
+    <div class="chip"><b>Offer letter — signature</b><span>Rolai HR</span></div>
+    <div class="chip"><span>+ 1 more</span></div></div>
+</div>
+<p class="legend">Dark edge = you decided · red edge = flagged important · plain = Jev decided on its own. Chips could drag between columns to fix mistakes before anything moves.</p>
+</div></body></html>
