@@ -14,5 +14,5 @@ test('keep label and ties keep object order, fewer than 3 returns what exists', 
 });
 test('important card carries the summary', () => expect(toCard(email, 1, ans({}), { kind: 'queue', card: 'important', suggestKeep: true }, { summary: ['Due Nov 20'] })).toMatchObject({ kind: 'important', summary: ['Due Nov 20'], suggestKeep: true }));
 test('jev failure gives no options', () => expect(toCard(email, 1, { ...ans({ destination: { probabilities: { archive: 1 } } }), failed: true }, { kind: 'queue', card: 'filing', suggestKeep: false }, {}).options).toEqual([]));
-test('body is truncated to 600', () => expect(toCard({ ...email, body: 'x'.repeat(900) }, 1, ans({}), { kind: 'queue', card: 'filing', suggestKeep: false }, {}).body).toBe('x'.repeat(600)));
-test('truncate cuts at max', () => { expect(truncate('abcdef', 3)).toBe('abc'); expect(truncate('ab', 3)).toBe('ab'); });
+test('body is truncated to 600', () => expect(toCard({ ...email, body: 'x'.repeat(900) }, 1, ans({}), { kind: 'queue', card: 'filing', suggestKeep: false }, {}).body).toHaveLength(600));
+test('truncate cuts at max', () => { expect(truncate('abcdef', 3)).toBe('ab…'); expect(truncate('ab', 3)).toBe('ab'); });

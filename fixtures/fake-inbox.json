@@ -1,0 +1,1469 @@
+[
+  {
+    "threadId": "t1",
+    "latestMessageId": "m1",
+    "fromName": "Northwind Outfitters",
+    "fromAddress": "deals@northwind.example.com",
+    "subject": "50% off fall boots, today only",
+    "daysAgo": 34,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Shop the season's best boots before they're gone.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "archive",
+        "confidence": 0.97,
+        "probabilities": {
+          "archive": 0.97,
+          "keep": 0.02
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.97,
+        "newsletter": 0.04,
+        "automated_sender": 0.96,
+        "needs_attention": 0.05,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.04,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "auto_archive"
+  },
+  {
+    "threadId": "t2",
+    "latestMessageId": "m2",
+    "fromName": "Contoso Travel Deals",
+    "fromAddress": "offers@contoso.example.com",
+    "subject": "Last chance: weekend flights from $79",
+    "daysAgo": 21,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Fares this low will not last. Book by Sunday.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "archive",
+        "confidence": 0.97,
+        "probabilities": {
+          "archive": 0.97,
+          "keep": 0.02
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.97,
+        "newsletter": 0.04,
+        "automated_sender": 0.96,
+        "needs_attention": 0.05,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.04,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "auto_archive"
+  },
+  {
+    "threadId": "t3",
+    "latestMessageId": "m3",
+    "fromName": "Fabrikam Home",
+    "fromAddress": "hello@fabrikam.example.com",
+    "subject": "We miss you! Here is 20% off",
+    "daysAgo": 45,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "It has been a while. Come back and save on your next order.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "archive",
+        "confidence": 0.97,
+        "probabilities": {
+          "archive": 0.97,
+          "keep": 0.02
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.97,
+        "newsletter": 0.04,
+        "automated_sender": 0.96,
+        "needs_attention": 0.05,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.04,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "auto_archive"
+  },
+  {
+    "threadId": "t4",
+    "latestMessageId": "m4",
+    "fromName": "Tailspin Gear",
+    "fromAddress": "news@tailspin.example.org",
+    "subject": "Flash sale ends at midnight",
+    "daysAgo": 12,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Everything in the store is marked down. No code needed.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "archive",
+        "confidence": 0.97,
+        "probabilities": {
+          "archive": 0.97,
+          "keep": 0.02
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.97,
+        "newsletter": 0.04,
+        "automated_sender": 0.96,
+        "needs_attention": 0.05,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.04,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "auto_archive"
+  },
+  {
+    "threadId": "t5",
+    "latestMessageId": "m5",
+    "fromName": "Litware Rewards",
+    "fromAddress": "rewards@litware.example.com",
+    "subject": "You have 500 points expiring soon",
+    "daysAgo": 28,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Redeem your points on anything before the end of the month.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "archive",
+        "confidence": 0.97,
+        "probabilities": {
+          "archive": 0.97,
+          "keep": 0.02
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.97,
+        "newsletter": 0.04,
+        "automated_sender": 0.96,
+        "needs_attention": 0.05,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.04,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "auto_archive"
+  },
+  {
+    "threadId": "t6",
+    "latestMessageId": "m6",
+    "fromName": "Adventure Works",
+    "fromAddress": "marketing@adventure-works.example.com",
+    "subject": "Take our 2 minute survey, win a gift card",
+    "daysAgo": 52,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Tell us how we did and enter the monthly draw.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "archive",
+        "confidence": 0.97,
+        "probabilities": {
+          "archive": 0.97,
+          "keep": 0.02
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.97,
+        "newsletter": 0.04,
+        "automated_sender": 0.96,
+        "needs_attention": 0.05,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.04,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "auto_archive"
+  },
+  {
+    "threadId": "t7",
+    "latestMessageId": "m7",
+    "fromName": "Wide World Importers",
+    "fromAddress": "sales@wideworld.example.com",
+    "subject": "New arrivals just landed",
+    "daysAgo": 9,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Browse the newest collection of spring styles.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "archive",
+        "confidence": 0.97,
+        "probabilities": {
+          "archive": 0.97,
+          "keep": 0.02
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.97,
+        "newsletter": 0.04,
+        "automated_sender": 0.96,
+        "needs_attention": 0.05,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.04,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "auto_archive"
+  },
+  {
+    "threadId": "t8",
+    "latestMessageId": "m8",
+    "fromName": "Proseware",
+    "fromAddress": "promo@proseware.example.org",
+    "subject": "Cyber week preview: early access inside",
+    "daysAgo": 60,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Members get first pick of the best deals.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "archive",
+        "confidence": 0.97,
+        "probabilities": {
+          "archive": 0.97,
+          "keep": 0.02
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.97,
+        "newsletter": 0.04,
+        "automated_sender": 0.96,
+        "needs_attention": 0.05,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.04,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "auto_archive"
+  },
+  {
+    "threadId": "t9",
+    "latestMessageId": "m9",
+    "fromName": "Alpine Ski House",
+    "fromAddress": "team@alpineski.example.com",
+    "subject": "Season passes are on sale",
+    "daysAgo": 3,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Lock in your pass before prices go up next week.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "archive",
+        "confidence": 0.97,
+        "probabilities": {
+          "archive": 0.97,
+          "keep": 0.02
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.97,
+        "newsletter": 0.04,
+        "automated_sender": 0.96,
+        "needs_attention": 0.05,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.04,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "auto_archive"
+  },
+  {
+    "threadId": "t10",
+    "latestMessageId": "m10",
+    "fromName": "Coho Winery",
+    "fromAddress": "club@coho.example.com",
+    "subject": "Your wine club shipment is almost ready",
+    "daysAgo": 2,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Review your selections before we ship on Friday.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "archive",
+        "confidence": 0.9,
+        "probabilities": {
+          "archive": 0.9,
+          "keep": 0.05
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.9,
+        "newsletter": 0.04,
+        "automated_sender": 0.9,
+        "needs_attention": 0.2,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.04,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "queue_filing"
+  },
+  {
+    "threadId": "t11",
+    "latestMessageId": "m11",
+    "fromName": "The Weekly Digest",
+    "fromAddress": "digest@weeklydigest.example.com",
+    "subject": "Stories for you: why I left big tech",
+    "daysAgo": 14,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Top picks based on your reading history.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "archive",
+        "confidence": 0.92,
+        "probabilities": {
+          "archive": 0.92,
+          "keep": 0.03
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.3,
+        "newsletter": 0.93,
+        "automated_sender": 0.92,
+        "needs_attention": 0.1,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.04,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "auto_archive"
+  },
+  {
+    "threadId": "t12",
+    "latestMessageId": "m12",
+    "fromName": "Morning Brief",
+    "fromAddress": "editor@morningbrief.example.org",
+    "subject": "Your Tuesday roundup",
+    "daysAgo": 19,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Five stories to start your day.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "archive",
+        "confidence": 0.92,
+        "probabilities": {
+          "archive": 0.92,
+          "keep": 0.03
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.3,
+        "newsletter": 0.93,
+        "automated_sender": 0.92,
+        "needs_attention": 0.1,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.04,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "auto_archive"
+  },
+  {
+    "threadId": "t13",
+    "latestMessageId": "m13",
+    "fromName": "Design Notes",
+    "fromAddress": "hello@designnotes.example.com",
+    "subject": "Issue 88: spacing systems",
+    "daysAgo": 31,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "This week we look at spacing scales in practice.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "archive",
+        "confidence": 0.92,
+        "probabilities": {
+          "archive": 0.92,
+          "keep": 0.03
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.3,
+        "newsletter": 0.93,
+        "automated_sender": 0.92,
+        "needs_attention": 0.1,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.04,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "auto_archive"
+  },
+  {
+    "threadId": "t14",
+    "latestMessageId": "m14",
+    "fromName": "Product Letters",
+    "fromAddress": "editor@productletters.example.com",
+    "subject": "How the best PMs run discovery",
+    "daysAgo": 6,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "This week: a deep dive with three product leaders on discovery habits.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "label:Newsletters worth reading",
+        "confidence": 0.48,
+        "probabilities": {
+          "label:Newsletters worth reading": 0.48,
+          "archive": 0.44,
+          "keep": 0.04
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.04,
+        "newsletter": 0.9,
+        "automated_sender": 0.8,
+        "needs_attention": 0.3,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.04,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "queue_filing"
+  },
+  {
+    "threadId": "t15",
+    "latestMessageId": "m15",
+    "fromName": "Indie Hackers Weekly",
+    "fromAddress": "issue@indieweekly.example.org",
+    "subject": "What shipped this week",
+    "daysAgo": 11,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Launches, revenue milestones and a few lessons.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "label:Newsletters worth reading",
+        "confidence": 0.55,
+        "probabilities": {
+          "label:Newsletters worth reading": 0.55,
+          "archive": 0.4
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.04,
+        "newsletter": 0.85,
+        "automated_sender": 0.8,
+        "needs_attention": 0.35,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.04,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "queue_filing"
+  },
+  {
+    "threadId": "t16",
+    "latestMessageId": "m16",
+    "fromName": "Code Host",
+    "fromAddress": "notifications@codehost.example.com",
+    "subject": "[app] CI passed on main",
+    "daysAgo": 10,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "All checks have passed for commit 8f2c1a.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "archive",
+        "confidence": 0.95,
+        "probabilities": {
+          "archive": 0.95,
+          "keep": 0.02
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.04,
+        "newsletter": 0.04,
+        "automated_sender": 0.97,
+        "needs_attention": 0.1,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.4,
+        "dev_bot": 0.96
+      }
+    },
+    "expect": "auto_archive"
+  },
+  {
+    "threadId": "t17",
+    "latestMessageId": "m17",
+    "fromName": "Code Host",
+    "fromAddress": "notifications@codehost.example.com",
+    "subject": "[app] Dependabot: bump vite to 8.3.5",
+    "daysAgo": 16,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Bumps vite from 8.3.4 to 8.3.5.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "archive",
+        "confidence": 0.95,
+        "probabilities": {
+          "archive": 0.95,
+          "keep": 0.02
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.04,
+        "newsletter": 0.04,
+        "automated_sender": 0.97,
+        "needs_attention": 0.1,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.4,
+        "dev_bot": 0.96
+      }
+    },
+    "expect": "auto_archive"
+  },
+  {
+    "threadId": "t18",
+    "latestMessageId": "m18",
+    "fromName": "Code Host",
+    "fromAddress": "notifications@codehost.example.com",
+    "subject": "[api] Build failed on feature/auth",
+    "daysAgo": 2,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Run 1042 failed on step: lint. See the log for details.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "archive",
+        "confidence": 0.95,
+        "probabilities": {
+          "archive": 0.95,
+          "keep": 0.02
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.04,
+        "newsletter": 0.04,
+        "automated_sender": 0.97,
+        "needs_attention": 0.1,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.4,
+        "dev_bot": 0.96
+      }
+    },
+    "expect": "queue_filing"
+  },
+  {
+    "threadId": "t19",
+    "latestMessageId": "m19",
+    "fromName": "Deploy Bot",
+    "fromAddress": "bot@deploys.example.org",
+    "subject": "[docs] Deployment succeeded",
+    "daysAgo": 23,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Your preview is live at docs-preview.example.com.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "archive",
+        "confidence": 0.95,
+        "probabilities": {
+          "archive": 0.95,
+          "keep": 0.02
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.04,
+        "newsletter": 0.04,
+        "automated_sender": 0.97,
+        "needs_attention": 0.1,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.4,
+        "dev_bot": 0.96
+      }
+    },
+    "expect": "auto_archive"
+  },
+  {
+    "threadId": "t20",
+    "latestMessageId": "m20",
+    "fromName": "Example Bank",
+    "fromAddress": "no-reply@examplebank.example.com",
+    "subject": "Your statement is ready",
+    "daysAgo": 27,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Your monthly statement is now available in online banking.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "label:Finance/Statements",
+        "confidence": 0.9,
+        "probabilities": {
+          "label:Finance/Statements": 0.9,
+          "archive": 0.06,
+          "keep": 0.02
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.04,
+        "newsletter": 0.04,
+        "automated_sender": 0.95,
+        "needs_attention": 0.3,
+        "routine_financial": 0.9,
+        "financial_exception": 0.1,
+        "money_movement": 0.04,
+        "transactional": 0.5,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "proposed"
+  },
+  {
+    "threadId": "t21",
+    "latestMessageId": "m21",
+    "fromName": "Payroll Co",
+    "fromAddress": "noreply@payrollco.example.com",
+    "subject": "Your pay stub is available",
+    "daysAgo": 15,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Your pay statement for the period is ready to view.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "label:Finance/Statements",
+        "confidence": 0.9,
+        "probabilities": {
+          "label:Finance/Statements": 0.9,
+          "archive": 0.06,
+          "keep": 0.02
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.04,
+        "newsletter": 0.04,
+        "automated_sender": 0.95,
+        "needs_attention": 0.3,
+        "routine_financial": 0.9,
+        "financial_exception": 0.1,
+        "money_movement": 0.04,
+        "transactional": 0.5,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "proposed"
+  },
+  {
+    "threadId": "t22",
+    "latestMessageId": "m22",
+    "fromName": "Example Card",
+    "fromAddress": "alerts@examplecard.example.com",
+    "subject": "Statement closing date reminder",
+    "daysAgo": 40,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Your statement closes in 3 days. No action is needed.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "label:Finance/Statements",
+        "confidence": 0.9,
+        "probabilities": {
+          "label:Finance/Statements": 0.9,
+          "archive": 0.06,
+          "keep": 0.02
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.04,
+        "newsletter": 0.04,
+        "automated_sender": 0.95,
+        "needs_attention": 0.3,
+        "routine_financial": 0.9,
+        "financial_exception": 0.1,
+        "money_movement": 0.04,
+        "transactional": 0.5,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "proposed"
+  },
+  {
+    "threadId": "t23",
+    "latestMessageId": "m23",
+    "fromName": "Example Bank",
+    "fromAddress": "no-reply@examplebank.example.com",
+    "subject": "Your September statement is ready",
+    "daysAgo": 10,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Your balance is $1,284.19 and your minimum payment is due Nov 14.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "label:Finance/Statements",
+        "confidence": 0.71,
+        "probabilities": {
+          "label:Finance/Statements": 0.71,
+          "label:Finance/Bills due": 0.19,
+          "archive": 0.06
+        }
+      },
+      "nouls": {
+        "important": 0.3,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.04,
+        "newsletter": 0.04,
+        "automated_sender": 0.95,
+        "needs_attention": 0.5,
+        "routine_financial": 0.8,
+        "financial_exception": 0.8,
+        "money_movement": 0.04,
+        "transactional": 0.04,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "queue_filing"
+  },
+  {
+    "threadId": "t24",
+    "latestMessageId": "m24",
+    "fromName": "Skyline Air",
+    "fromAddress": "tickets@skylineair.example.com",
+    "subject": "Your trip to Austin is coming up",
+    "daysAgo": 5,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Check in opens 24 hours before your flight SK 1442.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "label:Travel",
+        "confidence": 0.91,
+        "probabilities": {
+          "label:Travel": 0.91,
+          "keep": 0.05,
+          "archive": 0.02
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.04,
+        "newsletter": 0.04,
+        "automated_sender": 0.9,
+        "needs_attention": 0.4,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.88,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "proposed"
+  },
+  {
+    "threadId": "t25",
+    "latestMessageId": "m25",
+    "fromName": "Hotel Lumen",
+    "fromAddress": "reservations@hotellumen.example.org",
+    "subject": "Booking confirmation: 2 nights",
+    "daysAgo": 18,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Your reservation is confirmed. We look forward to hosting you.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "label:Travel",
+        "confidence": 0.86,
+        "probabilities": {
+          "label:Travel": 0.86,
+          "keep": 0.08,
+          "archive": 0.04
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.04,
+        "newsletter": 0.04,
+        "automated_sender": 0.9,
+        "needs_attention": 0.35,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.9,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "proposed"
+  },
+  {
+    "threadId": "t26",
+    "latestMessageId": "m26",
+    "fromName": "Takeout Express",
+    "fromAddress": "orders@takeout.example.com",
+    "subject": "Your Thursday order",
+    "daysAgo": 7,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Total $16.42. Thanks for ordering!",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "label:Receipts",
+        "confidence": 0.84,
+        "probabilities": {
+          "label:Receipts": 0.84,
+          "archive": 0.12
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.04,
+        "newsletter": 0.04,
+        "automated_sender": 0.93,
+        "needs_attention": 0.1,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.92,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "proposed"
+  },
+  {
+    "threadId": "t27",
+    "latestMessageId": "m27",
+    "fromName": "Shopfront",
+    "fromAddress": "receipts@shopfront.example.com",
+    "subject": "Receipt for your purchase",
+    "daysAgo": 30,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Thanks for shopping. Your receipt is attached.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "label:Receipts",
+        "confidence": 0.88,
+        "probabilities": {
+          "label:Receipts": 0.88,
+          "archive": 0.1
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.04,
+        "newsletter": 0.04,
+        "automated_sender": 0.88,
+        "needs_attention": 0.2,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.9,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "proposed"
+  },
+  {
+    "threadId": "t28",
+    "latestMessageId": "m28",
+    "fromName": "Account Security",
+    "fromAddress": "no-reply@accounts.example.com",
+    "subject": "Security alert: new sign-in",
+    "daysAgo": 13,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "We noticed a new sign-in to your account. If this was you, you don't need to do anything.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "archive",
+        "confidence": 0.9,
+        "probabilities": {
+          "archive": 0.9,
+          "keep": 0.07
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.04,
+        "newsletter": 0.04,
+        "automated_sender": 0.95,
+        "needs_attention": 0.3,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.9,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "auto_archive"
+  },
+  {
+    "threadId": "t29",
+    "latestMessageId": "m29",
+    "fromName": "Fabrikam Support",
+    "fromAddress": "support@fabrikam.example.com",
+    "subject": "Update on your ticket",
+    "daysAgo": 20,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "We have an update on your request.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "archive",
+        "confidence": 0.5,
+        "probabilities": {
+          "archive": 0.5,
+          "keep": 0.3,
+          "label:Home": 0.15
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.04,
+        "newsletter": 0.04,
+        "automated_sender": 0.7,
+        "needs_attention": 0.45,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.5,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "queue_filing"
+  },
+  {
+    "threadId": "t30",
+    "latestMessageId": "m30",
+    "fromName": "Sam Rivera",
+    "fromAddress": "sam.rivera@example.org",
+    "subject": "Re: coffee next week?",
+    "daysAgo": 1,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Tuesday works for me! Same spot as last time? I can do 10 or after 2.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "keep",
+        "confidence": 0.52,
+        "probabilities": {
+          "keep": 0.52,
+          "archive": 0.31,
+          "label:Home": 0.05
+        }
+      },
+      "nouls": {
+        "important": 0.4,
+        "needs_reply": 0.86,
+        "bulk_marketing": 0.04,
+        "newsletter": 0.04,
+        "automated_sender": 0.05,
+        "needs_attention": 0.8,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.04,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "queue_filing"
+  },
+  {
+    "threadId": "t31",
+    "latestMessageId": "m31",
+    "fromName": "Jordan Lee",
+    "fromAddress": "jordan.lee@example.com",
+    "subject": "Quick question about the project",
+    "daysAgo": 3,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Do you have a minute this week to talk through the plan?",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "keep",
+        "confidence": 0.6,
+        "probabilities": {
+          "keep": 0.6,
+          "label:Work": 0.25,
+          "archive": 0.05
+        }
+      },
+      "nouls": {
+        "important": 0.3,
+        "needs_reply": 0.8,
+        "bulk_marketing": 0.04,
+        "newsletter": 0.04,
+        "automated_sender": 0.05,
+        "needs_attention": 0.75,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.04,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "queue_filing"
+  },
+  {
+    "threadId": "t32",
+    "latestMessageId": "m32",
+    "fromName": "Priya Nair",
+    "fromAddress": "priya.nair@example.org",
+    "subject": "Water shutoff Thursday + lease renewal",
+    "daysAgo": 2,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Heads up, water will be off Thursday morning. Also attaching the renewal form. Could you get it back by the 20th?",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "label:Home",
+        "confidence": 0.82,
+        "probabilities": {
+          "label:Home": 0.82,
+          "keep": 0.1,
+          "archive": 0.03
+        }
+      },
+      "nouls": {
+        "important": 0.9,
+        "needs_reply": 0.75,
+        "bulk_marketing": 0.04,
+        "newsletter": 0.04,
+        "automated_sender": 0.05,
+        "needs_attention": 0.95,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.04,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "queue_important",
+    "summary": [
+      "Water off Thu 9am to 1pm",
+      "Lease renewal form due the 20th",
+      "She wants a reply"
+    ]
+  },
+  {
+    "threadId": "t33",
+    "latestMessageId": "m33",
+    "fromName": "People Team",
+    "fromAddress": "hr@acme.example.com",
+    "subject": "Action needed: sign your updated offer letter",
+    "daysAgo": 1,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Please review and sign the attached offer letter by Friday. Let us know if you have any questions.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "label:Work",
+        "confidence": 0.77,
+        "probabilities": {
+          "label:Work": 0.77,
+          "keep": 0.18,
+          "archive": 0.01
+        }
+      },
+      "nouls": {
+        "important": 0.88,
+        "needs_reply": 0.4,
+        "bulk_marketing": 0.04,
+        "newsletter": 0.04,
+        "automated_sender": 0.3,
+        "needs_attention": 0.95,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.04,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "queue_important",
+    "summary": [
+      "Sign updated offer letter",
+      "Due Friday",
+      "Attachment: offer_letter_v2.pdf"
+    ]
+  },
+  {
+    "threadId": "t34",
+    "latestMessageId": "m34",
+    "fromName": "Notifier",
+    "fromAddress": "noreply@notifier.example.com",
+    "subject": "(no subject text)",
+    "daysAgo": 25,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "archive",
+        "confidence": 0.45,
+        "probabilities": {
+          "archive": 0.45,
+          "keep": 0.35
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.04,
+        "newsletter": 0.04,
+        "automated_sender": 0.6,
+        "needs_attention": 0.4,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.04,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "queue_filing"
+  },
+  {
+    "threadId": "t35",
+    "latestMessageId": "m35",
+    "fromName": "Gadget Co",
+    "fromAddress": "info@gadgetco.example.com",
+    "subject": "Your order has shipped",
+    "daysAgo": 6,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Hi there, your order has shipped and should arrive in 3 to 5 days.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "label:Receipts",
+        "confidence": 0.8,
+        "probabilities": {
+          "label:Receipts": 0.8,
+          "archive": 0.15
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.04,
+        "newsletter": 0.04,
+        "automated_sender": 0.9,
+        "needs_attention": 0.4,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.9,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "proposed"
+  },
+  {
+    "threadId": "t36",
+    "latestMessageId": "m36",
+    "fromName": "Zava Market",
+    "fromAddress": "deals@zava.example.org",
+    "subject": "Weekend only: free shipping",
+    "daysAgo": 37,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "No minimum. Ends Sunday.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "archive",
+        "confidence": 0.97,
+        "probabilities": {
+          "archive": 0.97,
+          "keep": 0.02
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.97,
+        "newsletter": 0.04,
+        "automated_sender": 0.96,
+        "needs_attention": 0.05,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.04,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "auto_archive"
+  },
+  {
+    "threadId": "t37",
+    "latestMessageId": "m37",
+    "fromName": "Reading List",
+    "fromAddress": "curator@readinglist.example.com",
+    "subject": "Ten links worth your time",
+    "daysAgo": 48,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "A short list of articles from around the web.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "archive",
+        "confidence": 0.92,
+        "probabilities": {
+          "archive": 0.92,
+          "keep": 0.03
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.3,
+        "newsletter": 0.93,
+        "automated_sender": 0.92,
+        "needs_attention": 0.1,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.04,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "auto_archive"
+  },
+  {
+    "threadId": "t38",
+    "latestMessageId": "m38",
+    "fromName": "Utility Co",
+    "fromAddress": "billing@utilityco.example.com",
+    "subject": "Your statement is ready",
+    "daysAgo": 33,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Your monthly statement is available online.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "label:Finance/Statements",
+        "confidence": 0.9,
+        "probabilities": {
+          "label:Finance/Statements": 0.9,
+          "archive": 0.06,
+          "keep": 0.02
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.04,
+        "newsletter": 0.04,
+        "automated_sender": 0.95,
+        "needs_attention": 0.3,
+        "routine_financial": 0.9,
+        "financial_exception": 0.1,
+        "money_movement": 0.04,
+        "transactional": 0.5,
+        "dev_bot": 0.04
+      }
+    },
+    "expect": "proposed"
+  }
+]

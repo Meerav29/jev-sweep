@@ -1,0 +1,51 @@
+import { readFileSync } from 'node:fs';
+import { beforeEach, expect, test } from 'vitest';
+import { FakeMail, loadFakeInbox, type FakeEmail } from '../../../server/mail/fake';
+
+const now = new Date('2026-10-31T12:00:00Z');
+const fixture: FakeEmail[] = loadFakeInbox(JSON.parse(readFileSync('fixtures/fake-inbox.json', 'utf8')), now);
+let m: FakeMail;
+beforeEach(() => { m = new FakeMail(fixture); });
+
+test('loadFakeInbox converts daysAgo to an ISO date', () => {
+  const [r] = loadFakeInbox([{ ...fixture[0], daysAgo: 2 }], now);
+  expect(r.date).toBe('2026-10-29T12:00:00.000Z');
+});
+test('fake fetchBatch is oldest first and honours exclusions', async () => {
+  const ex = new Map([[fixture[0].threadId, fixture[0].latestMessageId]]);
+  const b = await m.fetchBatch('', 5, ex);
+  expect(b.map(e => e.threadId)).not.toContain(fixture[0].threadId);
+  expect([...b].sort((x, y) => x.date.localeCompare(y.date))).toEqual(b);
+  expect(b).toHaveLength(5);
+});
+test('excluded thread comes back when a new message arrives', async () => {
+  const ex = new Map([[fixture[0].threadId, 'old-message-id']]);
+  expect((await m.fetchBatch('', 50, ex)).map(e => e.threadId)).toContain(fixture[0].threadId);
+});
+test('archive removes INBOX and logs; unarchive restores', async () => {
+  const id = fixture[0].threadId;
+  await m.archive(id);
+  expect((await m.getThread(id))!.labels).not.toContain('INBOX');
+  expect((await m.fetchBatch('', 100, new Map())).map(e => e.threadId)).not.toContain(id);
+  await m.unarchive(id);
+  expect((await m.getThread(id))!.labels).toContain('INBOX');
+  expect(m.log).toEqual([`archive:${id}`, `unarchive:${id}`]);
+});
+test('addLabel, star and markRead update state', async () => {
+  const id = fixture[0].threadId;
+  await m.addLabel(id, 'Travel'); await m.star(id); await m.markRead(id);
+  const t = (await m.getThread(id))!;
+  expect(t.labels).toEqual(expect.arrayContaining(['Travel', 'STARRED']));
+  expect(t.labels).not.toContain('UNREAD');
+  expect(t.unread).toBe(false);
+  expect(m.log).toEqual([`label:${id}:Travel`, `star:${id}`, `read:${id}`]);
+});
+test('getThread returns null for unknown ids; listLabels lists fixture folders', async () => {
+  expect(await m.getThread('nope')).toBeNull();
+  expect(await m.listLabels()).toEqual(expect.arrayContaining(['Travel', 'Receipts']));
+});
+test('FakeMail does not mutate the fixture it was given', async () => {
+  const before = JSON.stringify(fixture);
+  await m.archive(fixture[0].threadId);
+  expect(JSON.stringify(fixture)).toBe(before);
+});
