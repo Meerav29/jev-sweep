@@ -106,3 +106,37 @@ test('labels and unread are the union across the thread; other fields come from 
   expect(e2!.unread).toBe(true);
   expect(e2!.subject).toBe('Hi t9');
 });
+
+const SYS = [{ id: 'INBOX', name: 'INBOX', type: 'system' }, { id: 'SPAM', name: 'SPAM', type: 'system' }, { id: 'TRASH', name: 'TRASH', type: 'system' }];
+test('addLabel never resolves a folder name to a system label', async () => {
+  for (const name of ['spam', 'Trash', 'INBOX']) {
+    const api = mockGmail({ labels: SYS });
+    await new GmailProvider(api.auth, api.client).addLabel('t', name);
+    expect(api.labelsCreate).toHaveBeenCalledTimes(1);
+    expect(api.threadsModify).toHaveBeenCalledWith(expect.objectContaining({ requestBody: { addLabelIds: ['NEW'] } }));
+  }
+});
+test('addLabel throws if create hands back a system label, and 409 fallback ignores system labels', async () => {
+  const api = mockGmail({ labels: SYS });
+  api.labelsCreate.mockResolvedValueOnce({ data: { id: 'SPAM', name: 'spam' } });
+  await expect(new GmailProvider(api.auth, api.client).addLabel('t', 'spam')).rejects.toThrow(/system label/);
+  expect(api.threadsModify).not.toHaveBeenCalled();
+  const api2 = mockGmail({ labels: SYS });
+  api2.labelsCreate.mockRejectedValueOnce(Object.assign(new Error('exists'), { status: 409 }));
+  await expect(new GmailProvider(api2.auth, api2.client).addLabel('t', 'trash')).rejects.toThrow('exists');
+  expect(api2.threadsModify).not.toHaveBeenCalled();
+});
+test('modify refuses SPAM or TRASH in addLabelIds', async () => {
+  const api = mockGmail();
+  const g = new GmailProvider(api.auth, api.client) as unknown as { modify(id: string, b: object): Promise<void> };
+  await expect(g.modify('t', { addLabelIds: ['TRASH'] })).rejects.toThrow();
+  expect(api.threadsModify).not.toHaveBeenCalled();
+});
+test('fetchBatch skips a thread that 404s between list and get', async () => {
+  const ids = ['t3', 't2', 't1'];
+  const threads = Object.fromEntries(ids.map(id => [id, thread(id, String(Number(id.slice(1)) * 1000))]));
+  const api = mockGmail({ ids, threads });
+  api.threadsGet.mockRejectedValueOnce(Object.assign(new Error('gone'), { status: 404 })); // t1 is walked first
+  const b = await new GmailProvider(api.auth, api.client).fetchBatch('', 2, new Map());
+  expect(b.map(e => e.threadId)).toEqual(['t2', 't3']);
+});

@@ -6,6 +6,7 @@ export type FakeExpect = 'auto_archive' | 'proposed' | 'queue_filing' | 'queue_i
 /** A fixture row: a FakeEmail plus the policy branch the fixture intends for it. */
 export type FixtureEmail = FakeEmail & { expect: FakeExpect };
 
+const SYSTEM_LABELS = new Set(['INBOX', 'SPAM', 'TRASH', 'UNREAD', 'STARRED', 'IMPORTANT', 'SENT', 'DRAFT', 'CHAT']);
 const DAY_MS = 86_400_000;
 
 /** Turns the fixture file (with `daysAgo`) into emails with concrete ISO dates relative to `now`. */
@@ -60,6 +61,9 @@ export class FakeMail implements MailProvider {
   }
 
   async addLabel(threadId: string, name: string): Promise<void> {
+    if (SYSTEM_LABELS.has(name.toUpperCase()) || name.toUpperCase().startsWith('CATEGORY_')) {
+      throw new Error(`Refusing to apply system label "${name}" as a folder`);
+    }
     this.log.push(`label:${threadId}:${name}`);
     const known = [...this.labelNames].find(l => l.toLowerCase() === name.toLowerCase());
     const canonical = known ?? name;

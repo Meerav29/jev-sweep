@@ -23,6 +23,17 @@ function parseFrom(raw: string): { fromName: string; fromAddress: string } {
   return { fromName: addr, fromAddress: addr };
 }
 
+const SYSTEM_LABEL_IDS = new Set(['INBOX', 'SPAM', 'TRASH', 'UNREAD', 'STARRED', 'IMPORTANT', 'SENT', 'DRAFT', 'CHAT']);
+const NEVER_ADD = new Set(['SPAM', 'TRASH']);
+const isSystemLabelId = (id: string): boolean => SYSTEM_LABEL_IDS.has(id) || id.startsWith('CATEGORY_');
+
+/** Last line of defence: no modify call may ever add SPAM or TRASH. */
+function assertSafeModify(body: gmail_v1.Schema$ModifyThreadRequest): void {
+  for (const id of body.addLabelIds ?? []) {
+    if (NEVER_ADD.has(id)) throw new Error(`Refusing to add label ${id}`);
+  }
+}
+
 function httpStatus(err: unknown): number | undefined {
   const e = err as { status?: number; code?: number | string; response?: { status?: number } };
   if (typeof e?.status === 'number') return e.status;
@@ -61,7 +72,13 @@ export class GmailProvider implements MailProvider {
     const out: Email[] = [];
     for (const id of ids.reverse()) { // Gmail lists newest first
       if (out.length >= n) break;
-      const email = await this.fetchThread(id, names);
+      let email: Email | null;
+      try {
+        email = await this.fetchThread(id, names);
+      } catch (err) {
+        if (httpStatus(err) === 404) continue; // deleted between list and get
+        throw err;
+      }
       if (email && excluded.get(id) !== email.latestMessageId) out.push(email);
     }
     return out;
@@ -83,22 +100,27 @@ export class GmailProvider implements MailProvider {
 
   async addLabel(threadId: string, name: string): Promise<void> {
     const wanted = name.toLowerCase();
-    let label = (await this.allLabels()).find(l => (l.name ?? '').toLowerCase() === wanted);
+    const findUser = async () => (await this.allLabels()).find(l => l.type === 'user' && (l.name ?? '').toLowerCase() === wanted);
+    let label = await findUser();
     if (!label) {
       try {
         label = (await this.gmail.users.labels.create({ userId: 'me', requestBody: { name } })).data;
       } catch (err) {
         if (httpStatus(err) !== 409) throw err;
         // Already exists (e.g. a retried create that succeeded): reuse it.
-        label = (await this.allLabels()).find(l => (l.name ?? '').toLowerCase() === wanted);
+        label = await findUser();
         if (!label) throw err;
       }
     }
     if (!label.id) throw new Error(`Gmail returned no id for label "${name}"`);
+    if (label.type === 'system' || isSystemLabelId(label.id)) {
+      throw new Error(`Refusing to apply system label "${label.id}" as a folder`);
+    }
     await this.modify(threadId, { addLabelIds: [label.id] });
   }
 
   private async modify(threadId: string, requestBody: gmail_v1.Schema$ModifyThreadRequest): Promise<void> {
+    assertSafeModify(requestBody);
     await this.gmail.users.threads.modify({ userId: 'me', id: threadId, requestBody });
   }
 

@@ -49,3 +49,8 @@ test('FakeMail does not mutate the fixture it was given', async () => {
   await m.archive(fixture[0].threadId);
   expect(JSON.stringify(fixture)).toBe(before);
 });
+test('addLabel refuses system label names and logs nothing', async () => {
+  for (const name of ['spam', 'Trash', 'INBOX']) await expect(m.addLabel(fixture[0].threadId, name)).rejects.toThrow(/system label/);
+  expect(m.log).toEqual([]);
+  expect((await m.getThread(fixture[0].threadId))!.labels).not.toContain('spam');
+});
