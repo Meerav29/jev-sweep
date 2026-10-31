@@ -34,6 +34,8 @@ interface BatchState {
   total: number;
   status: BatchStatus;
   paused: boolean;
+  /** Dry run as of the batch's start; sticky across resumes (a live setting can still switch it on). */
+  dryRun: boolean;
   settings: Settings;
   emails: Map<string, { n: number; email: Email }>;
   /** Threads whose body still has to be re-fetched with getThread (resumed batches only). */
@@ -106,7 +108,7 @@ export class BatchRunner {
     const { repo, mail } = this.deps;
     const settings = repo.getSettings();
     const fetched = await mail.fetchBatch(settings.query, settings.batchSize, repo.excludedThreads());
-    const { id, batchNo } = repo.createBatch(sessionId, fetched.length);
+    const { id, batchNo } = repo.createBatch(sessionId, fetched.length, settings.dryRun);
     const s = this.newState(id, sessionId, batchNo, fetched.length, settings);
     fetched.forEach((email, i) => {
       const n = i + 1;
@@ -132,6 +134,7 @@ export class BatchRunner {
     const lb = repo.loadBatch(batchId);
     const s = this.newState(batchId, lb.sessionId, lb.batchNo, lb.total, repo.getSettings());
     s.status = lb.status;
+    s.dryRun = lb.dryRun;
     for (const { n, email } of lb.emails) s.emails.set(email.threadId, { n, email: { ...email, body: '' } });
     for (const [t, a] of Object.entries(lb.jev)) s.jev.set(t, a);
     for (const [t, x] of Object.entries(lb.text)) s.text.set(t, x);
@@ -140,9 +143,17 @@ export class BatchRunner {
     s.queue = restoreQueue(lb.queue.filter((q) => s.emails.has(q.threadId)));
 
     // Queued and current cards need their body again (it is never stored). Gone from Gmail → skipped.
+    const resumeErrors: string[] = [];
     const shown = [...(lb.current ? [lb.current] : []), ...s.queue.list().map((q) => q.threadId)];
     for (const t of shown) {
-      const fresh = await mail.getThread(t);
+      let fresh: Email | null;
+      try {
+        fresh = await mail.getThread(t);
+      } catch (e) {
+        s.queue.take(t);
+        resumeErrors.push(this.fail(s, t, e, false));
+        continue;
+      }
       const a = s.jev.get(t);
       if (!fresh || !a) {
         s.queue.take(t);
@@ -173,6 +184,7 @@ export class BatchRunner {
     this.batches.set(batchId, s);
     if (s.status === 'running' || s.status === 'reviewing') this.persistQueue(s);
     this.emit(s, { type: 'snapshot', view: this.view(batchId) });
+    for (const message of resumeErrors) this.emit(s, { type: 'error', message });
     if (s.status === 'running') {
       this.advance(s);
       this.spawn(s);
@@ -230,7 +242,8 @@ export class BatchRunner {
     const entry = s.emails.get(threadId);
     if (!entry) return;
     const existing = s.decisions.get(threadId);
-    if (existing?.status === 'auto_applied') return; // undoing auto-archives is out of scope here
+    // Undoing auto-archives is out of scope here; skipped/failed threads aren't safe to re-propose blind.
+    if (existing && (existing.status === 'auto_applied' || existing.status === 'skipped' || existing.status === 'failed')) return;
     const isCurrent = s.current?.threadId === threadId;
     const item = isCurrent ? s.currentItem : s.queue.take(threadId) ?? null;
     const d: Decision = existing
@@ -251,7 +264,7 @@ export class BatchRunner {
     if (!s) throw new Error(`Unknown batch ${batchId}`);
     return structuredClone({
       sessionId: s.sessionId, batchId: s.batchId, batchNo: s.batchNo, total: s.total, read: s.done.size,
-      status: s.status, paused: s.paused, dryRun: s.settings.dryRun,
+      status: s.status, paused: s.paused, dryRun: s.dryRun,
       decisions: [...s.decisions.values()].sort((a, b) => a.n - b.n),
       queue: s.queue.list(), current: s.current,
     });
@@ -282,7 +295,9 @@ export class BatchRunner {
       try {
         await this.process(s, t);
       } catch (e) {
-        this.emit(s, { type: 'error', message: `Processing "${s.emails.get(t)?.email.subject ?? t}" failed: ${errMessage(e)}` });
+        this.fail(s, t, e, true);
+        this.emitProgress(s);
+        this.checkDone(s);
       }
     }
   }
@@ -324,7 +339,8 @@ export class BatchRunner {
       important: false, star: false, opened: false };
     if (outcome.kind === 'auto_archive') {
       const d: Decision = { ...base, dest: 'archive', status: 'auto_applied' };
-      if (s.settings.dryRun) d.note = 'dry run';
+      // Checked right before the write: the batch's own setting, or dry run switched on since it started.
+      if (s.dryRun || this.deps.repo.getSettings().dryRun) d.note = 'dry run';
       else {
         try {
           await this.deps.mail.archive(email.threadId);
@@ -414,6 +430,30 @@ export class BatchRunner {
     else { s.decisions.set(t, d); this.deps.repo.saveDecision(s.batchId, d); }
   }
 
+  /** An unexpected throw for one thread: fail that thread so the batch can still finish (never stuck in running). */
+  private fail(s: BatchState, t: string, e: unknown, emit: boolean): string {
+    const entry = s.emails.get(t);
+    const subject = entry?.email.subject ?? t;
+    const message = `Processing "${subject}" failed: ${errMessage(e)}`;
+    s.done.add(t);
+    if (entry) {
+      const d: Decision = { threadId: t, n: entry.n, subject, fromName: entry.email.fromName, dest: 'keep', who: 'jev',
+        important: false, star: false, opened: false, status: 'failed', note: errMessage(e) };
+      s.decisions.set(t, d);
+      try { this.deps.repo.saveDecision(s.batchId, d); } catch { /* the error event below still reports it */ }
+      if (emit) this.emit(s, { type: 'decided', decision: structuredClone(d) });
+      // A decided thread can't stay on the review queue (clients drop it on `decided`).
+      if (s.queue.take(t)) this.persistQueueSafe(s);
+      if (s.current?.threadId === t) this.clearCurrent(s);
+    }
+    if (emit) this.emit(s, { type: 'error', message });
+    return message;
+  }
+
+  private persistQueueSafe(s: BatchState): void {
+    try { this.persistQueue(s); } catch { /* best effort while already handling an error */ }
+  }
+
   private setBody(s: BatchState, t: string, fresh: Email): void {
     const entry = s.emails.get(t)!;
     entry.email = { ...entry.email, body: fresh.body };
@@ -454,7 +494,7 @@ export class BatchRunner {
 
   private newState(batchId: string, sessionId: string, batchNo: number, total: number, settings: Settings): BatchState {
     return {
-      batchId, sessionId, batchNo, total, status: 'running', paused: false, settings,
+      batchId, sessionId, batchNo, total, status: 'running', paused: false, dryRun: settings.dryRun, settings,
       emails: new Map(), needsBody: new Set(), jev: new Map(), outcomes: new Map(), text: new Map(),
       decisions: new Map(), done: new Set(), pending: [], cursor: 0, queue: new ReviewQueue(),
       current: null, currentItem: null, workers: 0, inFlight: new Set(),

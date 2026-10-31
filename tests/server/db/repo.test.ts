@@ -1,4 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import Database from 'better-sqlite3';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Repo } from '../../../server/db/repo';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import type { Decision } from '../../../shared/types';
@@ -137,4 +141,33 @@ describe('Repo', () => {
     repo.saveSettings({ folders: [{ name: 'A', enabled: true }] });
     expect(repo.getSettings().folders).toEqual([{ name: 'A', enabled: true }]);
   });
+
+  it('remembers the dry-run setting a batch started with', () => {
+    expect(repo.loadBatch(repo.createBatch(sid, 1).id).dryRun).toBe(false);
+    expect(repo.loadBatch(repo.createBatch(sid, 1, true).id).dryRun).toBe(true);
+  });
+});
+
+it('adds the dry_run column to a database created before it existed', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'jev-sweep-repo-'));
+  const path = join(dir, 'old.db');
+  try {
+    const old = new Database(path);
+    old.exec(`CREATE TABLE sessions (id TEXT PRIMARY KEY, started_at TEXT NOT NULL);
+      CREATE TABLE batches (id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id),
+        batch_no INTEGER NOT NULL, total INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'running',
+        current TEXT, created_at TEXT NOT NULL);
+      INSERT INTO sessions VALUES ('s', '2026-10-01T00:00:00Z');
+      INSERT INTO batches (id, session_id, batch_no, total, created_at) VALUES ('b', 's', 1, 0, '2026-10-01T00:00:00Z');`);
+    old.close();
+    const r = new Repo(path);
+    expect(r.loadBatch('b').dryRun).toBe(false);
+    expect(r.loadBatch(r.createBatch('s', 0, true).id).dryRun).toBe(true);
+    r.close();
+    const again = new Repo(path); // reopening is a no-op
+    expect(again.loadBatch('b').dryRun).toBe(false);
+    again.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

@@ -16,12 +16,17 @@ const byId = new Map(fixture.map((f) => [f.threadId, f]));
 class TestMail extends FakeMail {
   gone = new Set<string>();
   archiveFails = new Set<string>();
+  getThreadFails = new Set<string>();
+  onArchive: (threadId: string) => void = () => {};
   async getThread(threadId: string): Promise<Email | null> {
+    if (this.getThreadFails.has(threadId)) throw new Error('gmail 500');
     return this.gone.has(threadId) ? null : super.getThread(threadId);
   }
   async archive(threadId: string): Promise<void> {
     if (this.archiveFails.has(threadId)) throw new Error('boom');
-    return super.archive(threadId);
+    const p = super.archive(threadId);
+    this.onArchive(threadId);
+    return p;
   }
 }
 
@@ -366,4 +371,88 @@ test('two batches coexist and events carry their batch id', async () => {
   expect(repo.loadBatch(b).emails.some((e) => ta.has(e.email.threadId))).toBe(false);
   expect(runner.view(a).batchNo).toBe(1); expect(runner.view(b).batchNo).toBe(2);
   expect(mirror(a)).toEqual(runner.view(a)); expect(mirror(b)).toEqual(runner.view(b));
+});
+
+test('dry run sticks to the batch: turning it off before resume still writes nothing', async () => {
+  repo.saveSettings({ dryRun: true });
+  const id = await runner.start(sessionId);
+  runner.pause(id); await settle();
+  repo.saveSettings({ dryRun: false });
+  runner = makeRunner();
+  await runner.resume(id); await settle();
+  expect(runner.view(id).read).toBe(38);
+  expect(runner.view(id).dryRun).toBe(true);
+  expect(mail.log).toEqual([]);
+  expect(runner.view(id).decisions.filter((d) => d.status === 'auto_applied').every((d) => d.note === 'dry run')).toBe(true);
+});
+
+test('turning dry run on mid-run stops further archive writes', async () => {
+  mail.onArchive = () => { repo.saveSettings({ dryRun: true }); };
+  const id = await runner.start(sessionId); await settle();
+  expect(mail.log.filter((l) => l.startsWith('archive:')).length).toBe(1);
+  const autos = runner.view(id).decisions.filter((d) => d.status === 'auto_applied');
+  expect(autos.length).toBe(fixture.filter((f) => f.expect === 'auto_archive').length);
+  expect(autos.filter((d) => d.note === 'dry run').length).toBe(autos.length - 1);
+  expect(runner.view(id).dryRun).toBe(false); // the batch started live
+});
+
+test('a throw while processing fails that thread instead of leaving the batch running', async () => {
+  const id = await runner.start(sessionId);
+  runner.pause(id); await settle();
+  const stored = repo.loadBatch(id);
+  const pending = stored.emails.map((e) => e.email.threadId).filter((t) => !stored.jev[t]);
+  const bad = pending[0];
+  mail.getThreadFails.add(bad);
+  events = [];
+  runner = makeRunner();
+  await runner.resume(id); await settle();
+  for (let i = 0; runner.view(id).current && i < 100; i++) runner.resolve(id, runner.view(id).current!.threadId, 'keep');
+  const v = runner.view(id);
+  expect(v.status).toBe('reviewing');
+  expect(v.read).toBe(38);
+  expect(v.decisions.find((d) => d.threadId === bad)).toMatchObject({ status: 'failed', dest: 'keep', who: 'jev' });
+  expect(v.decisions.find((d) => d.threadId === bad)!.note).toContain('gmail 500');
+  expect(ofType(id, 'error').filter((e) => e.message.includes('gmail 500')).length).toBe(1);
+  expect(mirror(id)).toEqual(v);
+});
+
+test('a getThread throw for the current or a queued card on resume fails it and the batch still finishes', async () => {
+  const id = await runner.start(sessionId); await settle();
+  const before = runner.view(id);
+  const badCurrent = before.current!.threadId;
+  const badQueued = before.queue[0].threadId;
+  mail.getThreadFails.add(badCurrent); mail.getThreadFails.add(badQueued);
+  events = [];
+  runner = makeRunner();
+  await runner.resume(id); await settle();
+  expect(runner.view(id).current!.threadId).toBe(before.queue[1].threadId);
+  for (let i = 0; runner.view(id).current && i < 100; i++) runner.resolve(id, runner.view(id).current!.threadId, 'keep');
+  const v = runner.view(id);
+  expect(v.status).toBe('reviewing');
+  for (const t of [badCurrent, badQueued]) {
+    expect(v.decisions.find((d) => d.threadId === t)).toMatchObject({ status: 'failed', dest: 'keep', who: 'jev' });
+    expect(v.decisions.find((d) => d.threadId === t)!.note).toContain('gmail 500');
+  }
+  expect(ofType(id, 'error').filter((e) => e.message.includes('gmail 500')).length).toBe(2);
+  expect(mirror(id)).toEqual(v);
+});
+
+test('move is a no-op for skipped and failed decisions', async () => {
+  mail.archiveFails.add('t1');
+  const id = await runner.start(sessionId); await settle();
+  const failed = runner.view(id).decisions.find((d) => d.threadId === 't1')!;
+  expect(failed.status).toBe('failed');
+  runner.move(id, 't1', 'keep');
+  expect(runner.view(id).decisions.find((d) => d.threadId === 't1')).toEqual(failed);
+
+  const gone = runner.view(id).queue[0].threadId;
+  mail.gone.add(gone);
+  runner = makeRunner();
+  await runner.resume(id); await settle();
+  const skipped = runner.view(id).decisions.find((d) => d.threadId === gone)!;
+  expect(skipped.status).toBe('skipped');
+  const n = events.length;
+  runner.move(id, gone, 'archive');
+  expect(runner.view(id).decisions.find((d) => d.threadId === gone)).toEqual(skipped);
+  expect(events.length).toBe(n);
 });

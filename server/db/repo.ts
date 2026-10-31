@@ -9,7 +9,7 @@ import type { CardText } from '../claude/cardText';
 export type StoredEmail = Omit<Email, 'body'>;
 
 export interface LoadedBatch {
-  sessionId: string; batchNo: number; total: number; status: BatchStatus;
+  sessionId: string; batchNo: number; total: number; status: BatchStatus; dryRun: boolean;
   emails: { n: number; email: StoredEmail }[];
   jev: Record<string, JevAnswers>;
   text: Record<string, CardText>;
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE TABLE IF NOT EXISTS batches (
   id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id),
   batch_no INTEGER NOT NULL, total INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'running',
-  current TEXT, created_at TEXT NOT NULL);
+  current TEXT, created_at TEXT NOT NULL, dry_run INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS emails (
   batch_id TEXT NOT NULL REFERENCES batches(id), thread_id TEXT NOT NULL, n INTEGER NOT NULL,
   latest_message_id TEXT NOT NULL, from_name TEXT NOT NULL, from_address TEXT NOT NULL,
@@ -60,6 +60,11 @@ export class Repo {
     if (path !== ':memory:') this.db.pragma('journal_mode = WAL');
     this.db.pragma('foreign_keys = ON');
     this.db.exec(SCHEMA);
+    // Databases created before dry_run existed get the column (idempotent).
+    const cols = this.db.prepare('PRAGMA table_info(batches)').all() as { name: string }[];
+    if (!cols.some((c) => c.name === 'dry_run')) {
+      this.db.exec('ALTER TABLE batches ADD COLUMN dry_run INTEGER NOT NULL DEFAULT 0');
+    }
   }
 
   close(): void { this.db.close(); }
@@ -71,12 +76,13 @@ export class Repo {
     return { id, startedAt };
   }
 
-  createBatch(sessionId: string, total: number): { id: string; batchNo: number } {
+  /** `dryRun` is the batch's starting dry-run setting; it sticks to the batch across resumes. */
+  createBatch(sessionId: string, total: number, dryRun = false): { id: string; batchNo: number } {
     const id = randomUUID();
     const row = this.db.prepare('SELECT COALESCE(MAX(batch_no), 0) + 1 AS n FROM batches WHERE session_id = ?')
       .get(sessionId) as { n: number };
-    this.db.prepare('INSERT INTO batches (id, session_id, batch_no, total, status, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(id, sessionId, row.n, total, 'running', new Date().toISOString());
+    this.db.prepare('INSERT INTO batches (id, session_id, batch_no, total, status, created_at, dry_run) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(id, sessionId, row.n, total, 'running', new Date().toISOString(), dryRun ? 1 : 0);
     return { id, batchNo: row.n };
   }
 
@@ -127,7 +133,7 @@ export class Repo {
 
   loadBatch(batchId: string): LoadedBatch {
     const b = this.db.prepare('SELECT * FROM batches WHERE id = ?').get(batchId) as
-      { session_id: string; batch_no: number; total: number; status: BatchStatus; current: string | null } | undefined;
+      { session_id: string; batch_no: number; total: number; status: BatchStatus; current: string | null; dry_run: number } | undefined;
     if (!b) throw new Error(`Unknown batch ${batchId}`);
 
     const emails = (this.db.prepare('SELECT * FROM emails WHERE batch_id = ? ORDER BY n').all(batchId) as any[])
@@ -163,7 +169,7 @@ export class Repo {
       .map((r): QueueItem => ({ threadId: r.thread_id, n: r.n, subject: r.subject, important: r.important === 1 }));
 
     return {
-      sessionId: b.session_id, batchNo: b.batch_no, total: b.total, status: b.status,
+      sessionId: b.session_id, batchNo: b.batch_no, total: b.total, status: b.status, dryRun: b.dry_run === 1,
       emails, jev, text, decisions, queue, current: b.current,
     };
   }
