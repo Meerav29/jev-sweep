@@ -281,6 +281,11 @@ export class BatchRunner {
     this.emit(s, { type: 'snapshot', view: this.view(batchId) });
   }
 
+  /** Whether this runner holds the batch in memory (started or resumed since the server came up). */
+  has(batchId: string): boolean {
+    return this.batches.has(batchId);
+  }
+
   view(batchId: string): BatchView {
     const s = this.get(batchId);
     if (!s) throw new Error(`Unknown batch ${batchId}`);
