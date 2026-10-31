@@ -1,4 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import Database from 'better-sqlite3';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Repo } from '../../../server/db/repo';
 import { DEFAULT_SETTINGS } from '../../../shared/types';
 import type { Decision } from '../../../shared/types';
@@ -94,6 +98,47 @@ describe('Repo', () => {
     expect(ex.get('x')).toBe('mx');
   });
 
+  /** A batch holding thread `t` (auto-archived) and `p` (proposed then applied), both noted `dry run` if dry. */
+  const finishedBatch = (tag: string, dry: boolean, status: 'applied' | 'reviewing' | 'applying' | 'discarded') => {
+    const id = repo.createBatch(sid, 2, dry).id;
+    repo.saveEmail(id, 1, { ...email, threadId: `${tag}-auto`, latestMessageId: 'm1' });
+    repo.saveEmail(id, 2, { ...email, threadId: `${tag}-prop`, latestMessageId: 'm2' });
+    const note = dry ? { note: 'dry run' } : {};
+    repo.saveDecision(id, dec(`${tag}-auto`, { status: 'auto_applied', ...note }));
+    repo.saveDecision(id, dec(`${tag}-prop`, { n: 2, status: status === 'applied' ? 'applied' : 'proposed', ...note }));
+    repo.setBatchStatus(id, status);
+    return id;
+  };
+
+  it('dry-run results of an applied or discarded batch do not hide threads from later batches', () => {
+    finishedBatch('a', true, 'applied');
+    finishedBatch('x', true, 'discarded');
+    const ex = repo.excludedThreads();
+    for (const t of ['a-auto', 'a-prop', 'x-auto']) expect(ex.has(t)).toBe(false);
+  });
+
+  it('a live applied batch still excludes its threads', () => {
+    finishedBatch('l', false, 'applied');
+    const ex = repo.excludedThreads();
+    expect(ex.get('l-auto')).toBe('m1');
+    expect(ex.get('l-prop')).toBe('m2');
+  });
+
+  it('a dry-run batch still reviewing or applying excludes all its threads', () => {
+    finishedBatch('r', true, 'reviewing');
+    finishedBatch('y', true, 'applying');
+    const ex = repo.excludedThreads();
+    for (const t of ['r-auto', 'r-prop', 'y-auto', 'y-prop']) expect(ex.has(t)).toBe(true);
+  });
+
+  it('batchStatus reads one batch status', () => {
+    const a = repo.createBatch(sid, 1).id;
+    expect(repo.batchStatus(a)).toBe('running');
+    repo.setBatchStatus(a, 'applying');
+    expect(repo.batchStatus(a)).toBe('applying');
+    expect(repo.batchStatus('nope')).toBeUndefined();
+  });
+
   it('unfinishedBatch returns running/reviewing and ignores applied', () => {
     expect(repo.unfinishedBatch()).toBeUndefined();
     const a = repo.createBatch(sid, 1).id;
@@ -137,4 +182,52 @@ describe('Repo', () => {
     repo.saveSettings({ folders: [{ name: 'A', enabled: true }] });
     expect(repo.getSettings().folders).toEqual([{ name: 'A', enabled: true }]);
   });
+
+  it('a batch that crashed mid-apply is still unfinished (resumable)', () => {
+    const b = repo.createBatch(sid, 1).id;
+    repo.setBatchStatus(b, 'applying');
+    expect(repo.unfinishedBatch()).toEqual({ batchId: b, sessionId: sid });
+    expect(repo.listSessions().find((s) => s.id === sid)!.unfinishedBatchId).toBe(b);
+    repo.setBatchStatus(b, 'applied');
+    expect(repo.unfinishedBatch()).toBeUndefined();
+    expect(repo.listSessions().find((s) => s.id === sid)!.unfinishedBatchId).toBeUndefined();
+  });
+
+  it('decision() reads one stored decision', () => {
+    const b = repo.createBatch(sid, 1).id;
+    expect(repo.decision(b, 't1')).toBeUndefined();
+    repo.saveDecision(b, dec('t1', { status: 'applied', note: 'x' }));
+    expect(repo.decision(b, 't1')).toEqual(dec('t1', { status: 'applied', note: 'x' }));
+    repo.saveDecision(b, dec('t2'));
+    expect(repo.decision(b, 't2')).toEqual(dec('t2'));
+  });
+
+  it('remembers the dry-run setting a batch started with', () => {
+    expect(repo.loadBatch(repo.createBatch(sid, 1).id).dryRun).toBe(false);
+    expect(repo.loadBatch(repo.createBatch(sid, 1, true).id).dryRun).toBe(true);
+  });
+});
+
+it('adds the dry_run column to a database created before it existed', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'jev-sweep-repo-'));
+  const path = join(dir, 'old.db');
+  try {
+    const old = new Database(path);
+    old.exec(`CREATE TABLE sessions (id TEXT PRIMARY KEY, started_at TEXT NOT NULL);
+      CREATE TABLE batches (id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id),
+        batch_no INTEGER NOT NULL, total INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'running',
+        current TEXT, created_at TEXT NOT NULL);
+      INSERT INTO sessions VALUES ('s', '2026-10-01T00:00:00Z');
+      INSERT INTO batches (id, session_id, batch_no, total, created_at) VALUES ('b', 's', 1, 0, '2026-10-01T00:00:00Z');`);
+    old.close();
+    const r = new Repo(path);
+    expect(r.loadBatch('b').dryRun).toBe(false);
+    expect(r.loadBatch(r.createBatch('s', 0, true).id).dryRun).toBe(true);
+    r.close();
+    const again = new Repo(path); // reopening is a no-op
+    expect(again.loadBatch('b').dryRun).toBe(false);
+    again.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

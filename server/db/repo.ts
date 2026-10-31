@@ -9,7 +9,7 @@ import type { CardText } from '../claude/cardText';
 export type StoredEmail = Omit<Email, 'body'>;
 
 export interface LoadedBatch {
-  sessionId: string; batchNo: number; total: number; status: BatchStatus;
+  sessionId: string; batchNo: number; total: number; status: BatchStatus; dryRun: boolean;
   emails: { n: number; email: StoredEmail }[];
   jev: Record<string, JevAnswers>;
   text: Record<string, CardText>;
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE TABLE IF NOT EXISTS batches (
   id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id),
   batch_no INTEGER NOT NULL, total INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'running',
-  current TEXT, created_at TEXT NOT NULL);
+  current TEXT, created_at TEXT NOT NULL, dry_run INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS emails (
   batch_id TEXT NOT NULL REFERENCES batches(id), thread_id TEXT NOT NULL, n INTEGER NOT NULL,
   latest_message_id TEXT NOT NULL, from_name TEXT NOT NULL, from_address TEXT NOT NULL,
@@ -49,6 +49,15 @@ CREATE TABLE IF NOT EXISTS queue_items (
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 `;
 
+function rowToDecision(r: any): Decision {
+  const d: Decision = {
+    threadId: r.thread_id, n: r.n, subject: r.subject, fromName: r.from_name, dest: r.dest, who: r.who,
+    important: r.important === 1, star: r.star === 1, opened: r.opened === 1, status: r.status,
+  };
+  if (r.note !== null) d.note = r.note;
+  return d;
+}
+
 export class Repo {
   private db: Database.Database;
 
@@ -60,6 +69,11 @@ export class Repo {
     if (path !== ':memory:') this.db.pragma('journal_mode = WAL');
     this.db.pragma('foreign_keys = ON');
     this.db.exec(SCHEMA);
+    // Databases created before dry_run existed get the column (idempotent).
+    const cols = this.db.prepare('PRAGMA table_info(batches)').all() as { name: string }[];
+    if (!cols.some((c) => c.name === 'dry_run')) {
+      this.db.exec('ALTER TABLE batches ADD COLUMN dry_run INTEGER NOT NULL DEFAULT 0');
+    }
   }
 
   close(): void { this.db.close(); }
@@ -71,17 +85,23 @@ export class Repo {
     return { id, startedAt };
   }
 
-  createBatch(sessionId: string, total: number): { id: string; batchNo: number } {
+  /** `dryRun` is the batch's starting dry-run setting; it sticks to the batch across resumes. */
+  createBatch(sessionId: string, total: number, dryRun = false): { id: string; batchNo: number } {
     const id = randomUUID();
     const row = this.db.prepare('SELECT COALESCE(MAX(batch_no), 0) + 1 AS n FROM batches WHERE session_id = ?')
       .get(sessionId) as { n: number };
-    this.db.prepare('INSERT INTO batches (id, session_id, batch_no, total, status, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(id, sessionId, row.n, total, 'running', new Date().toISOString());
+    this.db.prepare('INSERT INTO batches (id, session_id, batch_no, total, status, created_at, dry_run) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(id, sessionId, row.n, total, 'running', new Date().toISOString(), dryRun ? 1 : 0);
     return { id, batchNo: row.n };
   }
 
   setBatchStatus(batchId: string, s: BatchStatus): void {
     this.db.prepare('UPDATE batches SET status = ? WHERE id = ?').run(s, batchId);
+  }
+
+  batchStatus(batchId: string): BatchStatus | undefined {
+    const r = this.db.prepare('SELECT status FROM batches WHERE id = ?').get(batchId) as { status: BatchStatus } | undefined;
+    return r?.status;
   }
 
   saveEmail(batchId: string, n: number, e: Email): void {
@@ -110,6 +130,12 @@ export class Repo {
         d.important ? 1 : 0, d.star ? 1 : 0, d.opened ? 1 : 0, d.status, d.note ?? null);
   }
 
+  /** One stored decision, or undefined. The repo is the truth once apply has written to it. */
+  decision(batchId: string, threadId: string): Decision | undefined {
+    const r = this.db.prepare('SELECT * FROM decisions WHERE batch_id = ? AND thread_id = ?').get(batchId, threadId);
+    return r ? rowToDecision(r) : undefined;
+  }
+
   deleteDecision(batchId: string, threadId: string): void {
     this.db.prepare('DELETE FROM decisions WHERE batch_id = ? AND thread_id = ?').run(batchId, threadId);
   }
@@ -127,7 +153,7 @@ export class Repo {
 
   loadBatch(batchId: string): LoadedBatch {
     const b = this.db.prepare('SELECT * FROM batches WHERE id = ?').get(batchId) as
-      { session_id: string; batch_no: number; total: number; status: BatchStatus; current: string | null } | undefined;
+      { session_id: string; batch_no: number; total: number; status: BatchStatus; current: string | null; dry_run: number } | undefined;
     if (!b) throw new Error(`Unknown batch ${batchId}`);
 
     const emails = (this.db.prepare('SELECT * FROM emails WHERE batch_id = ? ORDER BY n').all(batchId) as any[])
@@ -150,20 +176,13 @@ export class Repo {
     }
 
     const decisions = (this.db.prepare('SELECT * FROM decisions WHERE batch_id = ? ORDER BY n').all(batchId) as any[])
-      .map((r): Decision => {
-        const d: Decision = {
-          threadId: r.thread_id, n: r.n, subject: r.subject, fromName: r.from_name, dest: r.dest, who: r.who,
-          important: r.important === 1, star: r.star === 1, opened: r.opened === 1, status: r.status,
-        };
-        if (r.note !== null) d.note = r.note;
-        return d;
-      });
+      .map(rowToDecision);
 
     const queue = (this.db.prepare('SELECT * FROM queue_items WHERE batch_id = ? ORDER BY position').all(batchId) as any[])
       .map((r): QueueItem => ({ threadId: r.thread_id, n: r.n, subject: r.subject, important: r.important === 1 }));
 
     return {
-      sessionId: b.session_id, batchNo: b.batch_no, total: b.total, status: b.status,
+      sessionId: b.session_id, batchNo: b.batch_no, total: b.total, status: b.status, dryRun: b.dry_run === 1,
       emails, jev, text, decisions, queue, current: b.current,
     };
   }
@@ -174,9 +193,13 @@ export class Repo {
     const add = (sql: string) => {
       for (const r of this.db.prepare(sql).all() as { thread_id: string }[]) ids.add(r.thread_id);
     };
-    add(`SELECT d.thread_id FROM decisions d JOIN batches b ON b.id = d.batch_id WHERE b.status != 'discarded'`);
-    add(`SELECT thread_id FROM decisions WHERE status IN ('auto_applied', 'applied')`);
-    add(`SELECT e.thread_id FROM emails e JOIN batches b ON b.id = e.batch_id WHERE b.status IN ('running', 'reviewing')`);
+    // A dry-run result in a finished (applied or discarded) batch changed nothing in Gmail, so it hides nothing.
+    const real = `NOT (COALESCE(d.note, '') = 'dry run' AND b.status IN ('applied', 'discarded'))`;
+    add(`SELECT d.thread_id FROM decisions d JOIN batches b ON b.id = d.batch_id WHERE b.status != 'discarded' AND ${real}`);
+    add(`SELECT d.thread_id FROM decisions d JOIN batches b ON b.id = d.batch_id
+      WHERE d.status IN ('auto_applied', 'applied') AND ${real}`);
+    // Open batches keep all their emails, dry run or not.
+    add(`SELECT e.thread_id FROM emails e JOIN batches b ON b.id = e.batch_id WHERE b.status IN ('running', 'reviewing', 'applying')`);
 
     const out = new Map<string, string>();
     const rows = this.db.prepare(
@@ -188,7 +211,7 @@ export class Repo {
 
   unfinishedBatch(): { batchId: string; sessionId: string } | undefined {
     const r = this.db.prepare(
-      `SELECT id, session_id FROM batches WHERE status IN ('running', 'reviewing') ORDER BY rowid DESC LIMIT 1`,
+      `SELECT id, session_id FROM batches WHERE status IN ('running', 'reviewing', 'applying') ORDER BY rowid DESC LIMIT 1`,
     ).get() as { id: string; session_id: string } | undefined;
     return r ? { batchId: r.id, sessionId: r.session_id } : undefined;
   }
@@ -206,7 +229,7 @@ export class Repo {
       FROM decisions d JOIN batches b ON b.id = d.batch_id
       WHERE b.session_id = ? AND b.status != 'discarded'`);
     const openStmt = this.db.prepare(
-      `SELECT id FROM batches WHERE session_id = ? AND status IN ('running', 'reviewing') ORDER BY rowid DESC LIMIT 1`);
+      `SELECT id FROM batches WHERE session_id = ? AND status IN ('running', 'reviewing', 'applying') ORDER BY rowid DESC LIMIT 1`);
 
     return sessions.map((s) => {
       const bt = batchStmt.get(s.id) as { c: number; t: number };

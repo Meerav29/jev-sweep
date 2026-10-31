@@ -42,8 +42,17 @@ export class TypeSafeJev implements JevClient {
 }
 
 export class FakeJev implements JevClient {
+  /** Number of ask() calls so far, failed ones included. */
+  public calls = 0;
+  private readonly failing = new Set<string>();
   constructor(private readonly answersByThread: Record<string, JevAnswers>) {}
+  /** Make ask() throw for this thread, as a TypeSafe error would after its retries. */
+  failFor(threadId: string): void {
+    this.failing.add(threadId);
+  }
   async ask(email: Email, _folders?: Folder[]): Promise<JevAnswers> {
+    this.calls++;
+    if (this.failing.has(email.threadId)) throw new Error(`FakeJev: simulated failure for thread ${email.threadId}`);
     const a = this.answersByThread[email.threadId];
     if (!a) throw new Error(`FakeJev has no answers for thread ${email.threadId}`);
     return a;
