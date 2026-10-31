@@ -622,3 +622,25 @@ test('resume skips a queued card whose latest message changed', async () => {
   }
   expect(v.current!.threadId).toBe(before.queue[1].threadId);
 });
+
+test("resume doesn't count answered-but-undecided threads as done", async () => {
+  // A crash right after saveJev for four auto-archive threads: answers stored, no decisions, nothing queued.
+  const autos = fixture.filter((f) => f.expect === 'auto_archive').slice(0, 4);
+  const { id } = repo.createBatch(sessionId, autos.length);
+  autos.forEach((f, i) => { repo.saveEmail(id, i + 1, f); repo.saveJev(id, f.threadId, f.jev); });
+  const changed = autos[3].threadId;
+  mail.newMessage.add(changed);
+  await runner.resume(id); // concurrency 2
+  await settle();
+  const v = runner.view(id);
+  for (const f of autos) expect(v.decisions.some((d) => d.threadId === f.threadId), f.threadId).toBe(true);
+  expect(v.decisions.find((d) => d.threadId === changed)).toMatchObject({ status: 'skipped', note: 'changed in Gmail' });
+  expect(mail.log).not.toContain(`archive:${changed}`);
+  expect(mail.log.filter((l) => l.startsWith('archive:')).length).toBe(3);
+  expect(jev.calls).toBe(0);
+  expect(v.status).toBe('reviewing');
+  const seq = events.filter((x) => x.batchId === id).map((x) => x.e);
+  const reviewingAt = seq.findIndex((e) => e.type === 'status' && e.status === 'reviewing');
+  expect(reviewingAt).toBeGreaterThan(seq.map((e) => e.type).lastIndexOf('decided'));
+  expect(mirror(id)).toEqual(v);
+});
