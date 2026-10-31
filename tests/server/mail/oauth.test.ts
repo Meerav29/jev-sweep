@@ -40,16 +40,16 @@ test('callback with a valid state stores the token and redirects home; state is 
   const state = stateOf((await app.request('/api/auth/google')).headers.get('location'));
   const res = await app.request(`/api/auth/google/callback?code=c&state=${state}`);
   expect(res.status).toBe(302);
-  expect(res.headers.get('location')).toBe('/');
+  expect(res.headers.get('location')).toBe('http://localhost:5173/');
   expect(JSON.parse(readFileSync(tokenPath, 'utf8'))).toEqual({ access_token: 'a', refresh_token: 'r' });
   expect((await app.request(`/api/auth/google/callback?code=c&state=${state}`)).status).toBe(400);
   expect(client.setCredentials).toHaveBeenCalled();
 });
-test('google error param redirects to /?auth=error', async () => {
+test('google error param redirects to the web app with ?auth=error', async () => {
   const { app } = setup();
   const res = await app.request('/api/auth/google/callback?error=access_denied');
   expect(res.status).toBe(302);
-  expect(res.headers.get('location')).toBe('/?auth=error');
+  expect(res.headers.get('location')).toBe('http://localhost:5173/?auth=error');
 });
 test('refreshed tokens are merged into the saved file', async () => {
   const { app, tokenPath, client } = setup();

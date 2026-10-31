@@ -4,6 +4,8 @@ export interface Config {
   port: number;
   fake: boolean;
   dataDir: string;
+  /** Where the browser app lives; the OAuth callback sends the user back here. */
+  webOrigin: string;
   concurrency: number;
   cardTextTimeoutMs: number;
   keys: { typesafe?: string; anthropic?: string; googleId?: string; googleSecret?: string };
@@ -21,6 +23,7 @@ export function loadConfig(env: Env = process.env): Config {
     port: Number(nonEmpty(env.PORT) ?? 8787),
     fake: env.JEV_SWEEP_FAKE === '1',
     dataDir: nonEmpty(env.JEV_SWEEP_DATA_DIR) ?? 'data',
+    webOrigin: (nonEmpty(env.WEB_ORIGIN) ?? 'http://localhost:5173').replace(/\/+$/, ''),
     concurrency: 6,
     cardTextTimeoutMs: 4000,
     keys: {

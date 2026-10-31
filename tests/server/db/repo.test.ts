@@ -168,6 +168,8 @@ describe('Repo', () => {
     expect(s.split).toEqual({ archived: 1, filed: 1, you: 2, important: 1 });
     expect(s.unfinishedBatchId).toBe(live);
     expect(list[0].unfinishedBatchId).toBeUndefined();
+    expect(s.lastBatchId).toBe(live);
+    expect(list[0].lastBatchId).toBeUndefined();
   });
 
   it('settings merge defaults with stored values', () => {

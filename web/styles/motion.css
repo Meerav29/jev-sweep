@@ -1,0 +1,19 @@
+/* All motion lives here, and only runs when the user hasn't asked for less of it. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes tin { from { opacity: 0; transform: translateY(-6px); } }
+  @keyframes bump { 50% { transform: scale(1.5); } }
+  @keyframes pulse { 50% { opacity: .2; } }
+  @keyframes redin {
+    0% { background: #fff; box-shadow: 0 0 0 0 rgba(194, 54, 43, .35); }
+    30% { box-shadow: 0 0 0 12px rgba(194, 54, 43, 0); }
+    100% { background: var(--redbg); box-shadow: 0 10px 40px rgba(0, 0, 0, .07); }
+  }
+  @keyframes fade { from { opacity: 0; } }
+
+  .fade-in { animation: fade .3s var(--ease); }
+  .tin { animation: tin .3s var(--ease) both; }
+  .dot { animation: pulse 1s infinite; }
+  .btn { transition: background .15s var(--ease), color .15s var(--ease); }
+  .seg button { transition: background .15s var(--ease), color .15s var(--ease); }
+  .prow { transition: background .15s var(--ease); }
+}

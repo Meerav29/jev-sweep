@@ -231,6 +231,9 @@ export class Repo {
     const openStmt = this.db.prepare(
       `SELECT id FROM batches WHERE session_id = ? AND status IN ('running', 'reviewing', 'applying') ORDER BY rowid DESC LIMIT 1`);
 
+    const lastStmt = this.db.prepare(
+      `SELECT id FROM batches WHERE session_id = ? AND status != 'discarded' ORDER BY rowid DESC LIMIT 1`);
+
     return sessions.map((s) => {
       const bt = batchStmt.get(s.id) as { c: number; t: number };
       const sp = splitStmt.get(s.id) as SessionSummary['split'];
@@ -240,6 +243,8 @@ export class Repo {
         split: { archived: sp.archived, filed: sp.filed, you: sp.you, important: sp.important },
       };
       if (open) out.unfinishedBatchId = open.id;
+      const last = lastStmt.get(s.id) as { id: string } | undefined;
+      if (last) out.lastBatchId = last.id;
       return out;
     });
   }
