@@ -139,7 +139,6 @@ export class BatchRunner {
     for (const [t, a] of Object.entries(lb.jev)) s.jev.set(t, a);
     for (const [t, x] of Object.entries(lb.text)) s.text.set(t, x);
     for (const d of lb.decisions) s.decisions.set(d.threadId, d);
-    for (const t of s.emails.keys()) if (s.jev.has(t) || s.decisions.has(t)) s.done.add(t);
     s.queue = restoreQueue(lb.queue.filter((q) => s.emails.has(q.threadId)));
 
     // Queued and current cards need their body again (it is never stored). Gone or changed in Gmail → skipped.
@@ -180,6 +179,9 @@ export class BatchRunner {
       s.pending.push(t);
       s.needsBody.add(t);
     }
+    // Done = decided, queued or current. Threads back in the pool (answered or not) become done only once processed.
+    const pending = new Set(s.pending);
+    for (const t of s.emails.keys()) if (!pending.has(t)) s.done.add(t);
 
     this.batches.set(batchId, s);
     if (s.status === 'running' || s.status === 'reviewing') this.persistQueue(s);
