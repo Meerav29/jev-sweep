@@ -1,6 +1,7 @@
 import type { gmail_v1 } from 'googleapis';
 import { expect, test, vi } from 'vitest';
-import { GmailProvider } from '../../../server/mail/gmail';
+import { google } from 'googleapis';
+import { GmailProvider, RETRY_CONFIG } from '../../../server/mail/gmail';
 
 const b64 = (s: string) => Buffer.from(s, 'utf8').toString('base64url');
 interface Opts { labels?: Array<{ id: string; name: string; type: string }>; ids?: string[]; threads?: Record<string, unknown> }
@@ -65,4 +66,43 @@ test('fetchBatch pages the list, walks oldest first, skips same-message exclusio
 test('provider never touches trash, delete or spam', () => {
   const src = Object.getOwnPropertyNames(GmailProvider.prototype).join(',');
   expect(src).not.toMatch(/trash|delete|spam/i);
+});
+
+test('client is built with retries for rate limits, 5xx and POST writes', () => {
+  expect(RETRY_CONFIG).toEqual({ retry: 4, statusCodesToRetry: [[429, 429], [500, 599]], httpMethodsToRetry: ['GET', 'HEAD', 'PUT', 'OPTIONS', 'DELETE', 'POST'] });
+  const spy = vi.spyOn(google, 'gmail').mockReturnValue({} as never);
+  new GmailProvider({} as never);
+  expect(spy).toHaveBeenCalledWith(expect.objectContaining({ version: 'v1', retryConfig: RETRY_CONFIG }));
+  spy.mockRestore();
+});
+test('addLabel recovers from a 409 on create by re-listing labels', async () => {
+  const api = mockGmail();
+  (api.client.users.labels.list as unknown as ReturnType<typeof vi.fn>)
+    .mockResolvedValueOnce({ data: { labels: [] } })
+    .mockResolvedValueOnce({ data: { labels: [{ id: 'L9', name: 'Work/Acme', type: 'user' }] } });
+  api.labelsCreate.mockRejectedValueOnce(Object.assign(new Error('exists'), { status: 409 }));
+  await new GmailProvider(api.auth, api.client).addLabel('t1', 'work/acme');
+  expect(api.threadsModify).toHaveBeenCalledWith(expect.objectContaining({ id: 't1', requestBody: { addLabelIds: ['L9'] } }));
+});
+test('getThread returns null on a 404 (status, code or response.status)', async () => {
+  for (const err of [{ status: 404 }, { code: 404 }, { response: { status: 404 } }]) {
+    const api = mockGmail();
+    api.threadsGet.mockRejectedValueOnce(Object.assign(new Error('nf'), err));
+    expect(await new GmailProvider(api.auth, api.client).getThread('x')).toBeNull();
+  }
+  const api = mockGmail();
+  api.threadsGet.mockRejectedValueOnce(Object.assign(new Error('boom'), { status: 500 }));
+  await expect(new GmailProvider(api.auth, api.client).getThread('x')).rejects.toThrow('boom');
+});
+test('labels and unread are the union across the thread; other fields come from the latest message', async () => {
+  const t = thread('t9', '5000', ['SENT']);
+  const api = mockGmail({ threads: { t9: t } });
+  const e = await new GmailProvider(api.auth, api.client).getThread('t9');
+  expect(e).toMatchObject({ subject: 'Hi t9', latestMessageId: 't9b', unread: false });
+  // earlier message has INBOX only; add UNREAD to it
+  (t.messages[0] as { labelIds: string[] }).labelIds = ['INBOX', 'UNREAD'];
+  const e2 = await new GmailProvider(api.auth, api.client).getThread('t9');
+  expect(e2!.labels).toEqual(expect.arrayContaining(['INBOX', 'UNREAD', 'SENT']));
+  expect(e2!.unread).toBe(true);
+  expect(e2!.subject).toBe('Hi t9');
 });

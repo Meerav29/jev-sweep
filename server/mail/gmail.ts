@@ -3,7 +3,11 @@ import type { OAuth2Client } from 'google-auth-library';
 import type { Email } from '../../shared/types';
 import { extractBody, type GmailPayload, type MailProvider } from './provider';
 
-const RETRY_CONFIG = { retry: 4, statusCodesToRetry: [[429, 429], [500, 599]] as [number, number][] };
+export const RETRY_CONFIG = {
+  retry: 4,
+  statusCodesToRetry: [[429, 429], [500, 599]] as [number, number][],
+  httpMethodsToRetry: ['GET', 'HEAD', 'PUT', 'OPTIONS', 'DELETE', 'POST'],
+};
 const PAGE_SIZE = 500;
 
 type Message = gmail_v1.Schema$Message;
@@ -17,6 +21,13 @@ function parseFrom(raw: string): { fromName: string; fromAddress: string } {
   if (m) return { fromName: (m[1] ?? '').trim() || m[2].trim(), fromAddress: m[2].trim() };
   const addr = raw.trim();
   return { fromName: addr, fromAddress: addr };
+}
+
+function httpStatus(err: unknown): number | undefined {
+  const e = err as { status?: number; code?: number | string; response?: { status?: number } };
+  if (typeof e?.status === 'number') return e.status;
+  if (typeof e?.response?.status === 'number') return e.response.status;
+  return typeof e?.code === 'number' ? e.code : undefined;
 }
 
 function latestMessage(messages: Message[]): Message {
@@ -60,7 +71,7 @@ export class GmailProvider implements MailProvider {
     try {
       return await this.fetchThread(threadId, new Map((await this.allLabels()).map(l => [l.id, l.name])));
     } catch (err) {
-      if ((err as { code?: number }).code === 404) return null;
+      if (httpStatus(err) === 404) return null;
       throw err;
     }
   }
@@ -74,7 +85,14 @@ export class GmailProvider implements MailProvider {
     const wanted = name.toLowerCase();
     let label = (await this.allLabels()).find(l => (l.name ?? '').toLowerCase() === wanted);
     if (!label) {
-      label = (await this.gmail.users.labels.create({ userId: 'me', requestBody: { name } })).data;
+      try {
+        label = (await this.gmail.users.labels.create({ userId: 'me', requestBody: { name } })).data;
+      } catch (err) {
+        if (httpStatus(err) !== 409) throw err;
+        // Already exists (e.g. a retried create that succeeded): reuse it.
+        label = (await this.allLabels()).find(l => (l.name ?? '').toLowerCase() === wanted);
+        if (!label) throw err;
+      }
     }
     if (!label.id) throw new Error(`Gmail returned no id for label "${name}"`);
     await this.modify(threadId, { addLabelIds: [label.id] });
@@ -94,7 +112,7 @@ export class GmailProvider implements MailProvider {
     const messages = res.data.messages ?? [];
     if (messages.length === 0) return null;
     const m = latestMessage(messages);
-    const labelIds = m.labelIds ?? [];
+    const labelIds = [...new Set(messages.flatMap(x => x.labelIds ?? []))];
     return {
       threadId: id,
       latestMessageId: m.id ?? '',
