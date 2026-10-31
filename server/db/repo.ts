@@ -1,0 +1,245 @@
+import Database from 'better-sqlite3';
+import { randomUUID } from 'node:crypto';
+import { mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { DEFAULT_SETTINGS } from '../../shared/types';
+import type { BatchStatus, Decision, Email, JevAnswers, QueueItem, SessionSummary, Settings } from '../../shared/types';
+import type { CardText } from '../claude/cardText';
+
+export type StoredEmail = Omit<Email, 'body'>;
+
+export interface LoadedBatch {
+  sessionId: string; batchNo: number; total: number; status: BatchStatus;
+  emails: { n: number; email: StoredEmail }[];
+  jev: Record<string, JevAnswers>;
+  text: Record<string, CardText>;
+  decisions: Decision[];
+  queue: QueueItem[];
+  current: string | null;
+}
+
+const SCHEMA = `
+CREATE TABLE IF NOT EXISTS sessions (
+  id TEXT PRIMARY KEY, started_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS batches (
+  id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id),
+  batch_no INTEGER NOT NULL, total INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'running',
+  current TEXT, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS emails (
+  batch_id TEXT NOT NULL REFERENCES batches(id), thread_id TEXT NOT NULL, n INTEGER NOT NULL,
+  latest_message_id TEXT NOT NULL, from_name TEXT NOT NULL, from_address TEXT NOT NULL,
+  subject TEXT NOT NULL, date TEXT NOT NULL, labels TEXT NOT NULL, unread INTEGER NOT NULL,
+  PRIMARY KEY (batch_id, thread_id));
+CREATE TABLE IF NOT EXISTS jev_answers (
+  batch_id TEXT NOT NULL REFERENCES batches(id), thread_id TEXT NOT NULL, answers TEXT NOT NULL,
+  PRIMARY KEY (batch_id, thread_id));
+CREATE TABLE IF NOT EXISTS card_text (
+  batch_id TEXT NOT NULL REFERENCES batches(id), thread_id TEXT NOT NULL, text TEXT NOT NULL,
+  PRIMARY KEY (batch_id, thread_id));
+CREATE TABLE IF NOT EXISTS decisions (
+  batch_id TEXT NOT NULL REFERENCES batches(id), thread_id TEXT NOT NULL, n INTEGER NOT NULL,
+  subject TEXT NOT NULL, from_name TEXT NOT NULL, dest TEXT NOT NULL, who TEXT NOT NULL,
+  important INTEGER NOT NULL, star INTEGER NOT NULL, opened INTEGER NOT NULL,
+  status TEXT NOT NULL, note TEXT,
+  PRIMARY KEY (batch_id, thread_id));
+CREATE TABLE IF NOT EXISTS queue_items (
+  batch_id TEXT NOT NULL REFERENCES batches(id), position INTEGER NOT NULL, thread_id TEXT NOT NULL,
+  n INTEGER NOT NULL, subject TEXT NOT NULL, important INTEGER NOT NULL,
+  PRIMARY KEY (batch_id, position));
+CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+`;
+
+export class Repo {
+  private db: Database.Database;
+
+  constructor(path: string) {
+    if (path !== ':memory:') {
+      mkdirSync(dirname(path), { recursive: true });
+    }
+    this.db = new Database(path);
+    if (path !== ':memory:') this.db.pragma('journal_mode = WAL');
+    this.db.pragma('foreign_keys = ON');
+    this.db.exec(SCHEMA);
+  }
+
+  close(): void { this.db.close(); }
+
+  createSession(): { id: string; startedAt: string } {
+    const id = randomUUID();
+    const startedAt = new Date().toISOString();
+    this.db.prepare('INSERT INTO sessions (id, started_at) VALUES (?, ?)').run(id, startedAt);
+    return { id, startedAt };
+  }
+
+  createBatch(sessionId: string, total: number): { id: string; batchNo: number } {
+    const id = randomUUID();
+    const row = this.db.prepare('SELECT COALESCE(MAX(batch_no), 0) + 1 AS n FROM batches WHERE session_id = ?')
+      .get(sessionId) as { n: number };
+    this.db.prepare('INSERT INTO batches (id, session_id, batch_no, total, status, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run(id, sessionId, row.n, total, 'running', new Date().toISOString());
+    return { id, batchNo: row.n };
+  }
+
+  setBatchStatus(batchId: string, s: BatchStatus): void {
+    this.db.prepare('UPDATE batches SET status = ? WHERE id = ?').run(s, batchId);
+  }
+
+  saveEmail(batchId: string, n: number, e: Email): void {
+    this.db.prepare(`INSERT OR REPLACE INTO emails
+      (batch_id, thread_id, n, latest_message_id, from_name, from_address, subject, date, labels, unread)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(batchId, e.threadId, n, e.latestMessageId, e.fromName, e.fromAddress, e.subject, e.date,
+        JSON.stringify(e.labels), e.unread ? 1 : 0);
+  }
+
+  saveJev(batchId: string, threadId: string, a: JevAnswers): void {
+    this.db.prepare('INSERT OR REPLACE INTO jev_answers (batch_id, thread_id, answers) VALUES (?, ?, ?)')
+      .run(batchId, threadId, JSON.stringify(a));
+  }
+
+  saveCardText(batchId: string, threadId: string, t: CardText): void {
+    this.db.prepare('INSERT OR REPLACE INTO card_text (batch_id, thread_id, text) VALUES (?, ?, ?)')
+      .run(batchId, threadId, JSON.stringify(t));
+  }
+
+  saveDecision(batchId: string, d: Decision): void {
+    this.db.prepare(`INSERT OR REPLACE INTO decisions
+      (batch_id, thread_id, n, subject, from_name, dest, who, important, star, opened, status, note)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(batchId, d.threadId, d.n, d.subject, d.fromName, d.dest, d.who,
+        d.important ? 1 : 0, d.star ? 1 : 0, d.opened ? 1 : 0, d.status, d.note ?? null);
+  }
+
+  deleteDecision(batchId: string, threadId: string): void {
+    this.db.prepare('DELETE FROM decisions WHERE batch_id = ? AND thread_id = ?').run(batchId, threadId);
+  }
+
+  saveQueue(batchId: string, q: QueueItem[], current: string | null): void {
+    const tx = this.db.transaction(() => {
+      this.db.prepare('DELETE FROM queue_items WHERE batch_id = ?').run(batchId);
+      const ins = this.db.prepare(
+        'INSERT INTO queue_items (batch_id, position, thread_id, n, subject, important) VALUES (?, ?, ?, ?, ?, ?)');
+      q.forEach((it, i) => ins.run(batchId, i, it.threadId, it.n, it.subject, it.important ? 1 : 0));
+      this.db.prepare('UPDATE batches SET current = ? WHERE id = ?').run(current, batchId);
+    });
+    tx();
+  }
+
+  loadBatch(batchId: string): LoadedBatch {
+    const b = this.db.prepare('SELECT * FROM batches WHERE id = ?').get(batchId) as
+      { session_id: string; batch_no: number; total: number; status: BatchStatus; current: string | null } | undefined;
+    if (!b) throw new Error(`Unknown batch ${batchId}`);
+
+    const emails = (this.db.prepare('SELECT * FROM emails WHERE batch_id = ? ORDER BY n').all(batchId) as any[])
+      .map((r) => ({
+        n: r.n as number,
+        email: {
+          threadId: r.thread_id, latestMessageId: r.latest_message_id, fromName: r.from_name,
+          fromAddress: r.from_address, subject: r.subject, date: r.date,
+          labels: JSON.parse(r.labels) as string[], unread: r.unread === 1,
+        } satisfies StoredEmail,
+      }));
+
+    const jev: Record<string, JevAnswers> = {};
+    for (const r of this.db.prepare('SELECT thread_id, answers FROM jev_answers WHERE batch_id = ?').all(batchId) as any[]) {
+      jev[r.thread_id] = JSON.parse(r.answers);
+    }
+    const text: Record<string, CardText> = {};
+    for (const r of this.db.prepare('SELECT thread_id, text FROM card_text WHERE batch_id = ?').all(batchId) as any[]) {
+      text[r.thread_id] = JSON.parse(r.text);
+    }
+
+    const decisions = (this.db.prepare('SELECT * FROM decisions WHERE batch_id = ? ORDER BY n').all(batchId) as any[])
+      .map((r): Decision => {
+        const d: Decision = {
+          threadId: r.thread_id, n: r.n, subject: r.subject, fromName: r.from_name, dest: r.dest, who: r.who,
+          important: r.important === 1, star: r.star === 1, opened: r.opened === 1, status: r.status,
+        };
+        if (r.note !== null) d.note = r.note;
+        return d;
+      });
+
+    const queue = (this.db.prepare('SELECT * FROM queue_items WHERE batch_id = ? ORDER BY position').all(batchId) as any[])
+      .map((r): QueueItem => ({ threadId: r.thread_id, n: r.n, subject: r.subject, important: r.important === 1 }));
+
+    return {
+      sessionId: b.session_id, batchNo: b.batch_no, total: b.total, status: b.status,
+      emails, jev, text, decisions, queue, current: b.current,
+    };
+  }
+
+  /** threadId -> latestMessageId (from the most recent batch the thread appeared in). */
+  excludedThreads(): Map<string, string> {
+    const ids = new Set<string>();
+    const add = (sql: string) => {
+      for (const r of this.db.prepare(sql).all() as { thread_id: string }[]) ids.add(r.thread_id);
+    };
+    add(`SELECT d.thread_id FROM decisions d JOIN batches b ON b.id = d.batch_id WHERE b.status != 'discarded'`);
+    add(`SELECT thread_id FROM decisions WHERE status IN ('auto_applied', 'applied')`);
+    add(`SELECT e.thread_id FROM emails e JOIN batches b ON b.id = e.batch_id WHERE b.status IN ('running', 'reviewing')`);
+
+    const out = new Map<string, string>();
+    const rows = this.db.prepare(
+      'SELECT e.thread_id, e.latest_message_id FROM emails e JOIN batches b ON b.id = e.batch_id ORDER BY b.rowid ASC',
+    ).all() as { thread_id: string; latest_message_id: string }[];
+    for (const r of rows) if (ids.has(r.thread_id)) out.set(r.thread_id, r.latest_message_id);
+    return out;
+  }
+
+  unfinishedBatch(): { batchId: string; sessionId: string } | undefined {
+    const r = this.db.prepare(
+      `SELECT id, session_id FROM batches WHERE status IN ('running', 'reviewing') ORDER BY rowid DESC LIMIT 1`,
+    ).get() as { id: string; session_id: string } | undefined;
+    return r ? { batchId: r.id, sessionId: r.session_id } : undefined;
+  }
+
+  listSessions(): SessionSummary[] {
+    const sessions = this.db.prepare('SELECT id, started_at FROM sessions ORDER BY started_at DESC, rowid DESC')
+      .all() as { id: string; started_at: string }[];
+    const batchStmt = this.db.prepare(
+      'SELECT COUNT(*) AS c, COALESCE(SUM(total), 0) AS t FROM batches WHERE session_id = ?');
+    const splitStmt = this.db.prepare(`SELECT
+        COALESCE(SUM(d.dest = 'archive'), 0) AS archived,
+        COALESCE(SUM(d.dest LIKE 'label:%'), 0) AS filed,
+        COALESCE(SUM(d.who = 'you'), 0) AS you,
+        COALESCE(SUM(d.important = 1), 0) AS important
+      FROM decisions d JOIN batches b ON b.id = d.batch_id
+      WHERE b.session_id = ? AND b.status != 'discarded'`);
+    const openStmt = this.db.prepare(
+      `SELECT id FROM batches WHERE session_id = ? AND status IN ('running', 'reviewing') ORDER BY rowid DESC LIMIT 1`);
+
+    return sessions.map((s) => {
+      const bt = batchStmt.get(s.id) as { c: number; t: number };
+      const sp = splitStmt.get(s.id) as SessionSummary['split'];
+      const open = openStmt.get(s.id) as { id: string } | undefined;
+      const out: SessionSummary = {
+        id: s.id, startedAt: s.started_at, batches: bt.c, total: bt.t,
+        split: { archived: sp.archived, filed: sp.filed, you: sp.you, important: sp.important },
+      };
+      if (open) out.unfinishedBatchId = open.id;
+      return out;
+    });
+  }
+
+  getSettings(): Settings {
+    const r = this.db.prepare(`SELECT value FROM settings WHERE key = 'settings'`).get() as { value: string } | undefined;
+    const stored = (r ? JSON.parse(r.value) : {}) as Partial<Settings>;
+    return {
+      ...DEFAULT_SETTINGS,
+      ...stored,
+      thresholds: { ...DEFAULT_SETTINGS.thresholds, ...(stored.thresholds ?? {}) },
+    };
+  }
+
+  saveSettings(patch: Partial<Settings>): Settings {
+    const cur = this.getSettings();
+    const next: Settings = {
+      ...cur,
+      ...patch,
+      thresholds: { ...cur.thresholds, ...(patch.thresholds ?? {}) },
+    };
+    this.db.prepare(`INSERT INTO settings (key, value) VALUES ('settings', ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run(JSON.stringify(next));
+    return next;
+  }
+}
