@@ -147,7 +147,7 @@ SQLite file in the project folder (git-ignored). Tables for sessions, batches, e
 ### 6.9 Setup for someone who clones it
 
 - `.env` with `TYPESAFE_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
-- The README walks through making a Google Cloud OAuth client (Desktop app type, Gmail API enabled, scope `gmail.modify`) and a one-time "Connect Gmail" button that stores the refresh token locally (git-ignored).
+- The README walks through making a Google Cloud OAuth client (Web application type, redirect URI `http://localhost:8787/api/auth/google/callback`, Gmail API enabled, scope `gmail.modify`) and a one-time "Connect Gmail" button that stores the refresh token locally (git-ignored).
 - `npm install && npm run dev` starts the server and the UI.
 - **First-run setup screen** (my call): on first launch, and whenever something is missing, the app shows a short checklist instead of the home screen: TypeSafe key found, Anthropic key found, Google client found, Gmail connected, folders chosen. Each item links to the README step that fixes it. The goal is that a stranger can go from `git clone` to a first session without reading code.
 - **Nothing in the repo is specific to one person.** No hard-coded emails, labels, queries or paths. Defaults (query, thresholds, batch size) are generic, and everything about the user's mailbox (labels, descriptions) is read from their Gmail or set in settings. Every secret and token stays in git-ignored local files.
