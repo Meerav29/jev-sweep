@@ -142,7 +142,7 @@ export class BatchRunner {
     for (const t of s.emails.keys()) if (s.jev.has(t) || s.decisions.has(t)) s.done.add(t);
     s.queue = restoreQueue(lb.queue.filter((q) => s.emails.has(q.threadId)));
 
-    // Queued and current cards need their body again (it is never stored). Gone from Gmail → skipped.
+    // Queued and current cards need their body again (it is never stored). Gone or changed in Gmail → skipped.
     const resumeErrors: string[] = [];
     const shown = [...(lb.current ? [lb.current] : []), ...s.queue.list().map((q) => q.threadId)];
     for (const t of shown) {
@@ -155,7 +155,7 @@ export class BatchRunner {
         continue;
       }
       const a = s.jev.get(t);
-      if (!fresh || !a) {
+      if (!fresh || !a || this.changed(s, t, fresh)) {
         s.queue.take(t);
         this.skip(s, t, false);
         continue;
@@ -244,7 +244,8 @@ export class BatchRunner {
     if (stored === 'applying' || stored === 'applied') return;
     const entry = s.emails.get(threadId);
     if (!entry) return;
-    const existing = s.decisions.get(threadId);
+    // Apply writes decisions straight to the repo, so in-memory ones can be stale: the stored one wins.
+    const existing = this.deps.repo.decision(batchId, threadId) ?? s.decisions.get(threadId);
     // Skipped/failed threads aren't safe to re-propose blind; applied ones are already done in Gmail.
     if (existing && (existing.status === 'skipped' || existing.status === 'failed' || existing.status === 'applied')) return;
     if (existing?.status === 'auto_applied') {
@@ -326,13 +327,15 @@ export class BatchRunner {
     if (s.needsBody.has(t)) {
       s.needsBody.delete(t);
       const fresh = await mail.getThread(t);
-      if (!fresh) {
+      // A stored answer is about the message Jev saw; if the thread moved on (or vanished), don't act on it.
+      if (!fresh || (s.jev.has(t) && this.changed(s, t, fresh))) {
         this.skip(s, t, true);
         this.emitProgress(s);
         this.checkDone(s);
         return;
       }
-      this.setBody(s, t, fresh);
+      if (s.jev.has(t)) this.setBody(s, t, fresh);
+      else this.replaceEmail(s, t, fresh); // Jev will see the fresh thread, so store what it saw
     }
     const { n, email } = s.emails.get(t)!;
     let a = s.jev.get(t);
@@ -345,9 +348,10 @@ export class BatchRunner {
       repo.saveJev(s.batchId, t, a);
       s.jev.set(t, a);
     }
-    s.done.add(t);
     // A board drag may already have decided this thread while Jev was thinking; the human wins.
     if (!s.decisions.has(t)) await this.act(s, n, email, a);
+    // Done only once act() (and any archive write in it) has finished, so checkDone can't fire mid-write.
+    s.done.add(t);
     this.emitProgress(s);
     this.checkDone(s);
   }
@@ -471,6 +475,16 @@ export class BatchRunner {
 
   private persistQueueSafe(s: BatchState): void {
     try { this.persistQueue(s); } catch { /* best effort while already handling an error */ }
+  }
+
+  private changed(s: BatchState, t: string, fresh: Email): boolean {
+    return fresh.latestMessageId !== s.emails.get(t)!.email.latestMessageId;
+  }
+
+  private replaceEmail(s: BatchState, t: string, fresh: Email): void {
+    const entry = s.emails.get(t)!;
+    entry.email = { ...fresh };
+    this.deps.repo.saveEmail(s.batchId, entry.n, fresh);
   }
 
   private setBody(s: BatchState, t: string, fresh: Email): void {

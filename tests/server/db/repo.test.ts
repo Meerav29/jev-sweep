@@ -183,6 +183,25 @@ describe('Repo', () => {
     expect(repo.getSettings().folders).toEqual([{ name: 'A', enabled: true }]);
   });
 
+  it('a batch that crashed mid-apply is still unfinished (resumable)', () => {
+    const b = repo.createBatch(sid, 1).id;
+    repo.setBatchStatus(b, 'applying');
+    expect(repo.unfinishedBatch()).toEqual({ batchId: b, sessionId: sid });
+    expect(repo.listSessions().find((s) => s.id === sid)!.unfinishedBatchId).toBe(b);
+    repo.setBatchStatus(b, 'applied');
+    expect(repo.unfinishedBatch()).toBeUndefined();
+    expect(repo.listSessions().find((s) => s.id === sid)!.unfinishedBatchId).toBeUndefined();
+  });
+
+  it('decision() reads one stored decision', () => {
+    const b = repo.createBatch(sid, 1).id;
+    expect(repo.decision(b, 't1')).toBeUndefined();
+    repo.saveDecision(b, dec('t1', { status: 'applied', note: 'x' }));
+    expect(repo.decision(b, 't1')).toEqual(dec('t1', { status: 'applied', note: 'x' }));
+    repo.saveDecision(b, dec('t2'));
+    expect(repo.decision(b, 't2')).toEqual(dec('t2'));
+  });
+
   it('remembers the dry-run setting a batch started with', () => {
     expect(repo.loadBatch(repo.createBatch(sid, 1).id).dryRun).toBe(false);
     expect(repo.loadBatch(repo.createBatch(sid, 1, true).id).dryRun).toBe(true);

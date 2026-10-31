@@ -19,12 +19,21 @@ class TestMail extends FakeMail {
   archiveFails = new Set<string>();
   getThreadFails = new Set<string>();
   onArchive: (threadId: string) => void = () => {};
+  /** Threads that got a new message in Gmail: getThread reports a different latestMessageId. */
+  newMessage = new Set<string>();
+  /** archive() for these threads waits until the promise resolves. */
+  archiveGates = new Map<string, Promise<void>>();
   async getThread(threadId: string): Promise<Email | null> {
     if (this.getThreadFails.has(threadId)) throw new Error('gmail 500');
-    return this.gone.has(threadId) ? null : super.getThread(threadId);
+    if (this.gone.has(threadId)) return null;
+    const e = await super.getThread(threadId);
+    if (e && this.newMessage.has(threadId)) e.latestMessageId = `${e.latestMessageId}-new`;
+    return e;
   }
   async archive(threadId: string): Promise<void> {
     if (this.archiveFails.has(threadId)) throw new Error('boom');
+    const gate = this.archiveGates.get(threadId);
+    if (gate) await gate;
     const p = super.archive(threadId);
     this.onArchive(threadId);
     return p;
@@ -542,4 +551,74 @@ test('move is a no-op for skipped and failed decisions', async () => {
   runner.move(id, gone, 'archive');
   expect(runner.view(id).decisions.find((d) => d.threadId === gone)).toEqual(skipped);
   expect(events.length).toBe(n);
+});
+
+test('the batch only reaches reviewing after in-flight auto-archives finish', async () => {
+  let release!: () => void;
+  mail.archiveGates.set('t1', new Promise<void>((r) => { release = r; }));
+  const id = await runner.start(sessionId);
+  for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r)); // the other worker finishes the rest
+  expect(runner.view(id).decisions.some((d) => d.threadId === 't1')).toBe(false);
+  for (let i = 0; runner.view(id).current && i < 100; i++) runner.resolve(id, runner.view(id).current!.threadId, 'keep');
+  expect(runner.view(id).status).toBe('running'); // t1's archive is still pending
+  release(); await settle();
+  expect(runner.view(id).status).toBe('reviewing');
+  const types = events.filter((x) => x.batchId === id).map((x) => x.e);
+  const reviewingAt = types.findIndex((e) => e.type === 'status' && e.status === 'reviewing');
+  const lastDecided = types.map((e) => e.type).lastIndexOf('decided');
+  expect(reviewingAt).toBeGreaterThan(lastDecided);
+  expect(runner.view(id).decisions.find((d) => d.threadId === 't1')).toMatchObject({ status: 'auto_applied' });
+  expect(mirror(id)).toEqual(runner.view(id));
+});
+
+test('move reads the stored decision: an applied one is a no-op even without refresh()', async () => {
+  mail.archiveFails.add('t20'); // one apply failure returns the batch to reviewing
+  const id = await reviewed();
+  await applyBatch(applyDeps(), id);
+  expect(repo.loadBatch(id).status).toBe('reviewing');
+  const stored = repo.loadBatch(id);
+  const applied = stored.decisions.find((d) => d.status === 'applied')!;
+  expect(runner.view(id).decisions.find((d) => d.threadId === applied.threadId)!.status).toBe('proposed'); // stale in memory
+  const n = events.length;
+  runner.move(id, applied.threadId, applied.dest === 'keep' ? 'archive' : 'keep');
+  expect(repo.loadBatch(id).decisions).toEqual(stored.decisions);
+  expect(events.length).toBe(n);
+});
+
+test('resume skips a thread with a stored Jev answer whose latest message changed', async () => {
+  // Simulate a crash between saveJev and acting: answers stored, no decision, not queued.
+  const id = await runner.start(sessionId);
+  runner.pause(id); await settle();
+  const pendingBefore = repo.loadBatch(id).emails.map((e) => e.email.threadId).filter((t) => !repo.loadBatch(id).jev[t]);
+  const answered = pendingBefore[0];
+  repo.saveJev(id, answered, byId.get(answered)!.jev);
+
+  mail.newMessage.add(answered);
+  const calls = jev.calls;
+  events = [];
+  runner = makeRunner();
+  await runner.resume(id); await settle();
+  const v = runner.view(id);
+  expect(v.decisions.find((d) => d.threadId === answered)).toMatchObject({ status: 'skipped', note: 'changed in Gmail' });
+  expect(jev.calls).toBe(calls + pendingBefore.length - 1); // never re-asked, never acted on
+  expect(mail.log).not.toContain(`archive:${answered}`);
+  expect(v.read).toBe(38);
+  expect(mirror(id)).toEqual(v);
+
+});
+
+test('resume skips a queued card whose latest message changed', async () => {
+  const id = await runner.start(sessionId); await settle();
+  const before = runner.view(id);
+  const changedCurrent = before.current!.threadId;
+  const changedQueued = before.queue[0].threadId;
+  mail.newMessage.add(changedCurrent); mail.newMessage.add(changedQueued);
+  runner = makeRunner();
+  await runner.resume(id); await settle();
+  const v = runner.view(id);
+  for (const t of [changedCurrent, changedQueued]) {
+    expect(v.decisions.find((d) => d.threadId === t)).toMatchObject({ status: 'skipped', note: 'changed in Gmail' });
+    expect(v.queue.some((q) => q.threadId === t)).toBe(false);
+  }
+  expect(v.current!.threadId).toBe(before.queue[1].threadId);
 });

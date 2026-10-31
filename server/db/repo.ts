@@ -49,6 +49,15 @@ CREATE TABLE IF NOT EXISTS queue_items (
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 `;
 
+function rowToDecision(r: any): Decision {
+  const d: Decision = {
+    threadId: r.thread_id, n: r.n, subject: r.subject, fromName: r.from_name, dest: r.dest, who: r.who,
+    important: r.important === 1, star: r.star === 1, opened: r.opened === 1, status: r.status,
+  };
+  if (r.note !== null) d.note = r.note;
+  return d;
+}
+
 export class Repo {
   private db: Database.Database;
 
@@ -121,6 +130,12 @@ export class Repo {
         d.important ? 1 : 0, d.star ? 1 : 0, d.opened ? 1 : 0, d.status, d.note ?? null);
   }
 
+  /** One stored decision, or undefined. The repo is the truth once apply has written to it. */
+  decision(batchId: string, threadId: string): Decision | undefined {
+    const r = this.db.prepare('SELECT * FROM decisions WHERE batch_id = ? AND thread_id = ?').get(batchId, threadId);
+    return r ? rowToDecision(r) : undefined;
+  }
+
   deleteDecision(batchId: string, threadId: string): void {
     this.db.prepare('DELETE FROM decisions WHERE batch_id = ? AND thread_id = ?').run(batchId, threadId);
   }
@@ -161,14 +176,7 @@ export class Repo {
     }
 
     const decisions = (this.db.prepare('SELECT * FROM decisions WHERE batch_id = ? ORDER BY n').all(batchId) as any[])
-      .map((r): Decision => {
-        const d: Decision = {
-          threadId: r.thread_id, n: r.n, subject: r.subject, fromName: r.from_name, dest: r.dest, who: r.who,
-          important: r.important === 1, star: r.star === 1, opened: r.opened === 1, status: r.status,
-        };
-        if (r.note !== null) d.note = r.note;
-        return d;
-      });
+      .map(rowToDecision);
 
     const queue = (this.db.prepare('SELECT * FROM queue_items WHERE batch_id = ? ORDER BY position').all(batchId) as any[])
       .map((r): QueueItem => ({ threadId: r.thread_id, n: r.n, subject: r.subject, important: r.important === 1 }));
@@ -203,7 +211,7 @@ export class Repo {
 
   unfinishedBatch(): { batchId: string; sessionId: string } | undefined {
     const r = this.db.prepare(
-      `SELECT id, session_id FROM batches WHERE status IN ('running', 'reviewing') ORDER BY rowid DESC LIMIT 1`,
+      `SELECT id, session_id FROM batches WHERE status IN ('running', 'reviewing', 'applying') ORDER BY rowid DESC LIMIT 1`,
     ).get() as { id: string; session_id: string } | undefined;
     return r ? { batchId: r.id, sessionId: r.session_id } : undefined;
   }
@@ -221,7 +229,7 @@ export class Repo {
       FROM decisions d JOIN batches b ON b.id = d.batch_id
       WHERE b.session_id = ? AND b.status != 'discarded'`);
     const openStmt = this.db.prepare(
-      `SELECT id FROM batches WHERE session_id = ? AND status IN ('running', 'reviewing') ORDER BY rowid DESC LIMIT 1`);
+      `SELECT id FROM batches WHERE session_id = ? AND status IN ('running', 'reviewing', 'applying') ORDER BY rowid DESC LIMIT 1`);
 
     return sessions.map((s) => {
       const bt = batchStmt.get(s.id) as { c: number; t: number };
