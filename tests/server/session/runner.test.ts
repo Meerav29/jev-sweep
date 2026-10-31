@@ -268,15 +268,40 @@ test('move sets a board decision without touching gmail', async () => {
   runner.move(id, 't20', 'archive');
   expect(runner.view(id).decisions.find((d) => d.threadId === 't20')).toMatchObject({ dest: 'archive', who: 'you', status: 'proposed' });
   expect(ofType(id, 'decided').at(-1)!.decision.threadId).toBe('t20');
-  const auto = runner.view(id).decisions.find((d) => d.threadId === 't1')!;
-  runner.move(id, 't1', 'keep'); // auto_applied: out of scope, no-op
-  expect(runner.view(id).decisions.find((d) => d.threadId === 't1')).toEqual(auto);
   const cur = runner.view(id).current!.threadId;
   const nextUp = runner.view(id).queue[0].threadId;
   runner.move(id, cur, 'label:Work'); // dragging the current card's chip decides it
   expect(runner.view(id).decisions.find((d) => d.threadId === cur)).toMatchObject({ dest: 'label:Work', who: 'you', status: 'proposed' });
   expect(runner.view(id).current!.threadId).toBe(nextUp);
   expect(mail.log).toEqual(logBefore);
+});
+
+test('moving an auto-archived chip records the new dest but stays auto_applied until apply', async () => {
+  const id = await runner.start(sessionId); await settle();
+  const logBefore = [...mail.log];
+  const auto = runner.view(id).decisions.find((d) => d.threadId === 't1')!;
+  expect(auto).toMatchObject({ dest: 'archive', who: 'jev', status: 'auto_applied' });
+
+  runner.move(id, 't1', 'label:Receipts');
+  expect(runner.view(id).decisions.find((d) => d.threadId === 't1'))
+    .toEqual({ ...auto, dest: 'label:Receipts', who: 'you', status: 'auto_applied' });
+  expect(ofType(id, 'decided').at(-1)!.decision).toMatchObject({ threadId: 't1', dest: 'label:Receipts' });
+  expect(repo.loadBatch(id).decisions.find((d) => d.threadId === 't1')).toMatchObject({ dest: 'label:Receipts', status: 'auto_applied' });
+
+  runner.move(id, 't1', 'archive'); // back where Jev put it: apply has nothing to do
+  expect(runner.view(id).decisions.find((d) => d.threadId === 't1'))
+    .toEqual({ ...auto, dest: 'archive', who: 'you', status: 'auto_applied' });
+  expect(mail.log).toEqual(logBefore);
+  expect(mirror(id)).toEqual(runner.view(id));
+});
+
+test('a dry-run auto-archive keeps its note when moved', async () => {
+  repo.saveSettings({ dryRun: true });
+  const id = await runner.start(sessionId); await settle();
+  runner.move(id, 't1', 'keep');
+  expect(runner.view(id).decisions.find((d) => d.threadId === 't1'))
+    .toMatchObject({ dest: 'keep', who: 'you', status: 'auto_applied', note: 'dry run' });
+  expect(mail.log).toEqual([]);
 });
 
 test('a browser replaying snapshot + events sees exactly view()', async () => {

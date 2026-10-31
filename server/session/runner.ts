@@ -242,8 +242,14 @@ export class BatchRunner {
     const entry = s.emails.get(threadId);
     if (!entry) return;
     const existing = s.decisions.get(threadId);
-    // Undoing auto-archives is out of scope here; skipped/failed threads aren't safe to re-propose blind.
-    if (existing && (existing.status === 'auto_applied' || existing.status === 'skipped' || existing.status === 'failed')) return;
+    // Skipped/failed threads aren't safe to re-propose blind.
+    if (existing && (existing.status === 'skipped' || existing.status === 'failed')) return;
+    if (existing?.status === 'auto_applied') {
+      // Moving an auto-archive records the new dest only; apply undoes it in Gmail. Back to 'archive' = nothing to apply.
+      // The status (and a 'dry run' note, which says the archive never happened) stay for apply to read.
+      this.setDecision(s, { ...existing, dest, who: 'you' });
+      return;
+    }
     const isCurrent = s.current?.threadId === threadId;
     const item = isCurrent ? s.currentItem : s.queue.take(threadId) ?? null;
     const d: Decision = existing
