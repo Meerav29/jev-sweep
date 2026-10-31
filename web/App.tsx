@@ -3,6 +3,7 @@ import type { SetupStatus } from '../shared/types';
 import { api } from './api';
 import { Folders } from './screens/Folders';
 import { Home } from './screens/Home';
+import { Session } from './screens/Session';
 import { Setup } from './screens/Setup';
 import './styles/tokens.css';
 import './styles/app.css';
@@ -26,8 +27,20 @@ function takeAuthError(): boolean {
   return true;
 }
 
+/** A session lives in the hash, so reloading mid-batch comes back to the same screen. */
+function routeFromHash(): Route {
+  const m = /^#\/session\/(.+)$/.exec(window.location.hash);
+  return m ? { name: 'session', batchId: decodeURIComponent(m[1]) } : { name: 'home' };
+}
+
 export function App() {
-  const [route, setRoute] = useState<Route>({ name: 'home' });
+  const [route, setRoute] = useState<Route>(routeFromHash);
+
+  useEffect(() => {
+    const hash = route.name === 'session' ? `#/session/${encodeURIComponent(route.batchId)}` : '';
+    if (window.location.hash === hash) return;
+    window.history.replaceState(null, '', window.location.pathname + window.location.search + hash);
+  }, [route]);
   const [setup, setSetup] = useState<SetupStatus | null>(null);
   const [loadError, setLoadError] = useState<string | undefined>();
   const [authError, setAuthError] = useState(false);
@@ -54,11 +67,17 @@ export function App() {
   if (!setup) return <main className="screen"><p className="hint">Loading…</p></main>;
 
   if (route.name === 'folders') return <Folders onDone={home} />;
-  if (route.name === 'session' || route.name === 'board') {
-    // The session and board screens arrive in the next task; this keeps the route reachable.
+  if (route.name === 'session') {
+    return (
+      <Session batchId={route.batchId} onBack={home}
+        onReviewing={(batchId) => setRoute({ name: 'board', batchId, readOnly: false })} />
+    );
+  }
+  if (route.name === 'board') {
+    // The board arrives in the next task; this keeps the route reachable.
     return (
       <main className="screen">
-        <p className="sub">{route.name === 'board' ? 'Board' : 'Session'} {route.batchId} is coming soon.</p>
+        <p className="sub">Board {route.batchId} is coming soon.</p>
         <button className="btn" onClick={home}>Back</button>
       </main>
     );
