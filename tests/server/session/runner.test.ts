@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { beforeEach, expect, test } from 'vitest';
 import { BatchRunner } from '../../../server/session/runner';
+import { applyBatch } from '../../../server/session/apply';
 import { Repo } from '../../../server/db/repo';
 import { FakeMail, loadFakeInbox } from '../../../server/mail/fake';
 import { FakeJev } from '../../../server/jev/client';
@@ -302,6 +303,67 @@ test('a dry-run auto-archive keeps its note when moved', async () => {
   expect(runner.view(id).decisions.find((d) => d.threadId === 't1'))
     .toMatchObject({ dest: 'keep', who: 'you', status: 'auto_applied', note: 'dry run' });
   expect(mail.log).toEqual([]);
+});
+
+/** Runs a batch to the board: Jev done, every card answered 'keep'. */
+async function reviewed(): Promise<string> {
+  const id = await runner.start(sessionId); await settle();
+  for (let i = 0; runner.view(id).current && i < 100; i++) runner.resolve(id, runner.view(id).current!.threadId, 'keep');
+  await settle();
+  expect(runner.view(id).status).toBe('reviewing');
+  return id;
+}
+const applyDeps = () => ({ mail, repo, emit: (batchId: string, e: SessionEvent) => events.push({ batchId, e }) });
+
+test('refresh() reloads decisions and status after apply, as a snapshot', async () => {
+  const id = await reviewed();
+  await applyBatch(applyDeps(), id);
+  runner.refresh(id);
+  const v = runner.view(id);
+  const lb = repo.loadBatch(id);
+  expect(v.status).toBe('applied');
+  expect(v.decisions).toEqual(lb.decisions);
+  expect(v.decisions.some((d) => d.status === 'applied')).toBe(true);
+  expect(v.decisions.some((d) => d.status === 'proposed')).toBe(false);
+  expect(ofType(id, 'snapshot').at(-1)!.view).toEqual(v);
+  expect(mirror(id)).toEqual(v);
+});
+
+test('move is a no-op on an applied decision, and while the batch is applying or applied', async () => {
+  mail.archiveFails.add('t20'); // one apply failure keeps the batch reviewing, so only the decision guard is tested
+  const id = await reviewed();
+  await applyBatch(applyDeps(), id);
+  runner.refresh(id);
+  expect(runner.view(id).status).toBe('reviewing');
+  const applied = runner.view(id).decisions.find((d) => d.status === 'applied' && d.dest !== 'archive')!;
+  const n = events.length;
+  const log = [...mail.log];
+  runner.move(id, applied.threadId, 'archive');
+  expect(runner.view(id).decisions.find((d) => d.threadId === applied.threadId)).toEqual(applied);
+  expect(events.length).toBe(n);
+
+  // Status read from the repo: apply may be running without the runner knowing.
+  const failed = runner.view(id).decisions.find((d) => d.threadId === 't20')!;
+  repo.setBatchStatus(id, 'applying');
+  runner.move(id, 't20', 'keep');
+  runner.move(id, 't1', 'keep');
+  repo.setBatchStatus(id, 'applied');
+  runner.move(id, 't1', 'label:Work');
+  expect(runner.view(id).decisions.find((d) => d.threadId === 't20')).toEqual(failed);
+  expect(runner.view(id).decisions.find((d) => d.threadId === 't1')!.dest).toBe('archive');
+  expect(events.length).toBe(n);
+  expect(mail.log).toEqual(log);
+});
+
+test('move while the repo says applying is a no-op even for a proposed decision', async () => {
+  const id = await reviewed();
+  const prop = runner.view(id).decisions.find((d) => d.status === 'proposed')!;
+  repo.setBatchStatus(id, 'applying');
+  const n = events.length;
+  runner.move(id, prop.threadId, prop.dest === 'keep' ? 'archive' : 'keep');
+  expect(runner.view(id).decisions.find((d) => d.threadId === prop.threadId)).toEqual(prop);
+  expect(repo.loadBatch(id).decisions.find((d) => d.threadId === prop.threadId)).toEqual(prop);
+  expect(events.length).toBe(n);
 });
 
 test('a browser replaying snapshot + events sees exactly view()', async () => {

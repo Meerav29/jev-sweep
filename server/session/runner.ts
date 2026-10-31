@@ -239,11 +239,14 @@ export class BatchRunner {
   move(batchId: string, threadId: string, dest: Dest): void {
     const s = this.get(batchId);
     if (!s || (s.status !== 'running' && s.status !== 'reviewing')) return;
+    // Apply runs outside the runner: the repo's status is the truth while (or after) it runs.
+    const stored = this.deps.repo.batchStatus(batchId);
+    if (stored === 'applying' || stored === 'applied') return;
     const entry = s.emails.get(threadId);
     if (!entry) return;
     const existing = s.decisions.get(threadId);
-    // Skipped/failed threads aren't safe to re-propose blind.
-    if (existing && (existing.status === 'skipped' || existing.status === 'failed')) return;
+    // Skipped/failed threads aren't safe to re-propose blind; applied ones are already done in Gmail.
+    if (existing && (existing.status === 'skipped' || existing.status === 'failed' || existing.status === 'applied')) return;
     if (existing?.status === 'auto_applied') {
       // Moving an auto-archive records the new dest only; apply undoes it in Gmail. Back to 'archive' = nothing to apply.
       // The status (and a 'dry run' note, which says the archive never happened) stay for apply to read.
@@ -263,6 +266,16 @@ export class BatchRunner {
     if (isCurrent) this.clearCurrent(s);
     else if (item) this.persistQueue(s);
     this.checkDone(s);
+  }
+
+  /** Reloads decisions and status from the repo (apply writes them there) and sends clients a snapshot. */
+  refresh(batchId: string): void {
+    const s = this.get(batchId);
+    if (!s) return;
+    const lb = this.deps.repo.loadBatch(batchId);
+    s.status = lb.status;
+    s.decisions = new Map(lb.decisions.map((d) => [d.threadId, d]));
+    this.emit(s, { type: 'snapshot', view: this.view(batchId) });
   }
 
   view(batchId: string): BatchView {

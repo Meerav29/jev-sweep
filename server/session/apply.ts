@@ -12,8 +12,13 @@ export interface ApplyResult { applied: number; skipped: number; failed: number 
 
 /** Apply's own failures carry this note prefix; only these are retried by a later apply. */
 const FAIL_PREFIX = 'apply: ';
-/** Marks a failure while undoing an auto-archive, so a retry knows the thread may still need unarchiving. */
-const UNDO_FAIL_PREFIX = `${FAIL_PREFIX}(undo) `;
+/**
+ * Progress markers written after the prefix of a failure note, so a retry knows where the last attempt stopped:
+ * `(undo) ` = the decision was undoing an auto-archive; `(archived) ` = the archive step had already happened.
+ * They are bookkeeping only and never shown in error events.
+ */
+const UNDO_MARK = '(undo) ';
+const ARCHIVED_MARK = '(archived) ';
 const CHANGED = 'changed in Gmail';
 const DRY_RUN = 'dry run';
 
@@ -22,12 +27,19 @@ const running = new Map<string, Promise<ApplyResult>>();
 
 const errMessage = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-/** A moved auto-archive whose archive really happened in Gmail (a 'dry run' note means it never did). */
-const isUndo = (d: Decision) =>
-  (d.status === 'auto_applied' && d.note !== DRY_RUN) ||
-  (d.status === 'failed' && !!d.note?.startsWith(UNDO_FAIL_PREFIX));
-
 const isRetry = (d: Decision) => d.status === 'failed' && !!d.note?.startsWith(FAIL_PREFIX);
+
+/** What an earlier failed attempt recorded about itself (all false for a first attempt). */
+function progressOf(d: Decision): { undo: boolean; archived: boolean } {
+  if (!isRetry(d)) return { undo: false, archived: false };
+  let rest = d.note!.slice(FAIL_PREFIX.length);
+  const undo = rest.startsWith(UNDO_MARK);
+  if (undo) rest = rest.slice(UNDO_MARK.length);
+  return { undo, archived: rest.startsWith(ARCHIVED_MARK) };
+}
+
+/** A moved auto-archive whose archive really happened in Gmail (a 'dry run' note means it never did). */
+const isUndo = (d: Decision) => (d.status === 'auto_applied' && d.note !== DRY_RUN) || progressOf(d).undo;
 
 /** proposed; auto_applied moved off archive on the board; apply's own earlier failures. Nothing else is touched. */
 function processable(d: Decision): boolean {
@@ -87,13 +99,14 @@ async function doApply(deps: ApplyDeps, batchId: string): Promise<ApplyResult> {
       for (const d of list) {
         // Checked before every thread: the batch's own setting, or dry run switched on since.
         const dry = lb.dryRun || repo.getSettings().dryRun;
-        const next = dry ? done(d, 'applied', DRY_RUN) : await applyOne(deps, d, emails.get(d.threadId));
+        const { decision: next, error } = dry
+          ? { decision: done(d, 'applied', DRY_RUN), error: undefined }
+          : await applyOne(deps, d, emails.get(d.threadId));
         result[next.status === 'applied' ? 'applied' : next.status === 'skipped' ? 'skipped' : 'failed']++;
         repo.saveDecision(batchId, next);
         emit(batchId, { type: 'decided', decision: structuredClone(next) });
-        if (next.status === 'failed') {
-          emit(batchId, { type: 'error', message: `Applying "${d.subject}" failed: ${next.note!.slice(FAIL_PREFIX.length)}` });
-        }
+        // The raw error only: progress markers in the stored note are bookkeeping, not for people.
+        if (error !== undefined) emit(batchId, { type: 'error', message: `Applying "${d.subject}" failed: ${error}` });
       }
       emit(batchId, { type: 'apply_step', label, count: list.length, done: true });
     }
@@ -119,43 +132,61 @@ function done(d: Decision, status: 'applied' | 'skipped' | 'failed', note?: stri
   return out;
 }
 
+interface Outcome { decision: Decision; error?: string }
+
 /** Re-checks one thread, then writes: (unarchive) → label → archive → mark read → star. */
-async function applyOne(deps: ApplyDeps, d: Decision, stored: StoredEmail | undefined): Promise<Decision> {
+async function applyOne(deps: ApplyDeps, d: Decision, stored: StoredEmail | undefined): Promise<Outcome> {
   const { mail } = deps;
   const undo = isUndo(d);
   const retry = isRetry(d);
-  const failPrefix = undo ? UNDO_FAIL_PREFIX : FAIL_PREFIX;
+  const { archived } = progressOf(d);
+  let archivedNow = archived;
+  const fail = (e: unknown): Outcome => {
+    const message = errMessage(e);
+    const marks = (undo ? UNDO_MARK : '') + (archivedNow ? ARCHIVED_MARK : '');
+    return { decision: done(d, 'failed', FAIL_PREFIX + marks + message), error: message };
+  };
+  const skip = (): Outcome => ({ decision: done(d, 'skipped', CHANGED) });
+
   let fresh: Email | null;
   try {
     fresh = await mail.getThread(d.threadId);
   } catch (e) {
-    return done(d, 'failed', failPrefix + errMessage(e));
+    return fail(e);
   }
-  if (!fresh || !stored || fresh.latestMessageId !== stored.latestMessageId) return done(d, 'skipped', CHANGED);
+  if (!fresh || !stored || fresh.latestMessageId !== stored.latestMessageId) return skip();
 
   let inInbox = fresh.labels.includes('INBOX');
-  if (retry) {
-    // Our own earlier attempt may have moved it part way. A proposal kept in the inbox that is now out of it
-    // was moved by someone else; every other state is one this decision's writes can finish from.
-    if (!undo && !inInbox && d.dest === 'keep') return done(d, 'skipped', CHANGED);
-  } else if (undo ? inInbox : !inInbox) {
-    // A proposal must still be in the inbox; an auto-archive being undone must still be out of it.
-    return done(d, 'skipped', CHANGED);
+  if (archived) {
+    // The last attempt got as far as archiving: back in the inbox means someone moved it.
+    if (inInbox) return skip();
+  } else if (undo) {
+    // First attempt: an auto-archive being undone must still be out of the inbox. On a retry our own unarchive
+    // may already have happened, so either place is one this decision can finish from.
+    if (!retry && inInbox) return skip();
+  } else if (!inInbox) {
+    // A proposal (first try or retry before its archive step) must still be in the inbox.
+    return skip();
   }
 
   const folder = folderOf(d.dest);
   const leaves = d.dest !== 'keep';
   try {
-    if (undo && !inInbox) {
-      await mail.unarchive(d.threadId);
-      inInbox = true;
+    if (!archived) {
+      if (undo && !inInbox) {
+        await mail.unarchive(d.threadId);
+        inInbox = true;
+      }
+      if (folder !== null) await mail.addLabel(d.threadId, folder);
+      if (leaves) {
+        await mail.archive(d.threadId);
+        archivedNow = true;
+      }
     }
-    if (folder !== null) await mail.addLabel(d.threadId, folder);
-    if (leaves && inInbox) await mail.archive(d.threadId);
     if (leaves || d.opened) await mail.markRead(d.threadId);
     if (d.star) await mail.star(d.threadId);
   } catch (e) {
-    return done(d, 'failed', failPrefix + errMessage(e));
+    return fail(e);
   }
-  return done(d, 'applied');
+  return { decision: done(d, 'applied') };
 }

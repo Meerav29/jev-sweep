@@ -234,6 +234,49 @@ test('a moved auto-archive that was only a dry-run note is applied like a propos
   expect(mail.log).toEqual(['label:t5:Receipts', 'archive:t5', 'read:t5']);
 });
 
+test('a retried proposal that failed before archiving must still be in the inbox', async () => {
+  mail.failOnce.set('t1', 'addLabel');
+  const id = await batch([{ t: 't1', dest: 'label:Travel' }]);
+  await applyBatch(deps(), id);
+  expect(decisionOf(id, 't1')).toMatchObject({ status: 'failed', note: 'apply: addLabel exploded' });
+  await mail.archive('t1'); // the user archives it in Gmail meanwhile
+  mail.log = [];
+  expect(await applyBatch(deps(), id)).toEqual({ applied: 0, skipped: 1, failed: 0 });
+  expect(decisionOf(id, 't1')).toMatchObject({ status: 'skipped', note: 'changed in Gmail' });
+  expect(mail.log).toEqual([]);
+});
+
+test('a proposal that failed after archiving records it, and the retry only finishes the rest', async () => {
+  const fails = new Set(['markRead']);
+  mail.beforeWrite = (op) => { if (fails.delete(op)) throw new Error('read exploded'); };
+  const id = await batch([{ t: 't1', dest: 'label:Travel', star: true }]);
+  expect(await applyBatch(deps(), id)).toEqual({ applied: 0, skipped: 0, failed: 1 });
+  expect(decisionOf(id, 't1')).toMatchObject({ status: 'failed', note: 'apply: (archived) read exploded' });
+  expect(ofType(id, 'error').at(-1)!.message).toBe(`Applying "${byId.get('t1')!.subject}" failed: read exploded`);
+  mail.log = [];
+  expect(await applyBatch(deps(), id)).toEqual({ applied: 1, skipped: 0, failed: 0 });
+  expect(mail.log).toEqual(['read:t1', 'star:t1']);
+});
+
+test('an archived-marked retry that is back in the inbox was moved by someone: skipped', async () => {
+  const fails = new Set(['markRead']);
+  mail.beforeWrite = (op) => { if (fails.delete(op)) throw new Error('read exploded'); };
+  const id = await batch([{ t: 't1', dest: 'archive' }]);
+  await applyBatch(deps(), id);
+  await mail.unarchive('t1');
+  mail.log = [];
+  expect(await applyBatch(deps(), id)).toEqual({ applied: 0, skipped: 1, failed: 0 });
+  expect(mail.log).toEqual([]);
+});
+
+test('error events never show the progress markers', async () => {
+  mail.failOnce.set('t5', 'unarchive');
+  const id = await batch([{ t: 't5', dest: 'label:Receipts', status: 'auto_applied' }]);
+  await applyBatch(deps(), id);
+  expect(decisionOf(id, 't5').note).toBe('apply: (undo) unarchive exploded');
+  expect(ofType(id, 'error').at(-1)!.message).toBe(`Applying "${byId.get('t5')!.subject}" failed: unarchive exploded`);
+});
+
 // ---- ruling 4: re-check ----
 
 test('each re-check reason skips with "changed in Gmail" and writes nothing for that thread', async () => {

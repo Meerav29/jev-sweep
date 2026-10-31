@@ -90,6 +90,11 @@ export class Repo {
     this.db.prepare('UPDATE batches SET status = ? WHERE id = ?').run(s, batchId);
   }
 
+  batchStatus(batchId: string): BatchStatus | undefined {
+    const r = this.db.prepare('SELECT status FROM batches WHERE id = ?').get(batchId) as { status: BatchStatus } | undefined;
+    return r?.status;
+  }
+
   saveEmail(batchId: string, n: number, e: Email): void {
     this.db.prepare(`INSERT OR REPLACE INTO emails
       (batch_id, thread_id, n, latest_message_id, from_name, from_address, subject, date, labels, unread)
@@ -180,9 +185,13 @@ export class Repo {
     const add = (sql: string) => {
       for (const r of this.db.prepare(sql).all() as { thread_id: string }[]) ids.add(r.thread_id);
     };
-    add(`SELECT d.thread_id FROM decisions d JOIN batches b ON b.id = d.batch_id WHERE b.status != 'discarded'`);
-    add(`SELECT thread_id FROM decisions WHERE status IN ('auto_applied', 'applied')`);
-    add(`SELECT e.thread_id FROM emails e JOIN batches b ON b.id = e.batch_id WHERE b.status IN ('running', 'reviewing')`);
+    // A dry-run result in a finished (applied or discarded) batch changed nothing in Gmail, so it hides nothing.
+    const real = `NOT (COALESCE(d.note, '') = 'dry run' AND b.status IN ('applied', 'discarded'))`;
+    add(`SELECT d.thread_id FROM decisions d JOIN batches b ON b.id = d.batch_id WHERE b.status != 'discarded' AND ${real}`);
+    add(`SELECT d.thread_id FROM decisions d JOIN batches b ON b.id = d.batch_id
+      WHERE d.status IN ('auto_applied', 'applied') AND ${real}`);
+    // Open batches keep all their emails, dry run or not.
+    add(`SELECT e.thread_id FROM emails e JOIN batches b ON b.id = e.batch_id WHERE b.status IN ('running', 'reviewing', 'applying')`);
 
     const out = new Map<string, string>();
     const rows = this.db.prepare(

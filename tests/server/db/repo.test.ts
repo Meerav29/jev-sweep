@@ -98,6 +98,47 @@ describe('Repo', () => {
     expect(ex.get('x')).toBe('mx');
   });
 
+  /** A batch holding thread `t` (auto-archived) and `p` (proposed then applied), both noted `dry run` if dry. */
+  const finishedBatch = (tag: string, dry: boolean, status: 'applied' | 'reviewing' | 'applying' | 'discarded') => {
+    const id = repo.createBatch(sid, 2, dry).id;
+    repo.saveEmail(id, 1, { ...email, threadId: `${tag}-auto`, latestMessageId: 'm1' });
+    repo.saveEmail(id, 2, { ...email, threadId: `${tag}-prop`, latestMessageId: 'm2' });
+    const note = dry ? { note: 'dry run' } : {};
+    repo.saveDecision(id, dec(`${tag}-auto`, { status: 'auto_applied', ...note }));
+    repo.saveDecision(id, dec(`${tag}-prop`, { n: 2, status: status === 'applied' ? 'applied' : 'proposed', ...note }));
+    repo.setBatchStatus(id, status);
+    return id;
+  };
+
+  it('dry-run results of an applied or discarded batch do not hide threads from later batches', () => {
+    finishedBatch('a', true, 'applied');
+    finishedBatch('x', true, 'discarded');
+    const ex = repo.excludedThreads();
+    for (const t of ['a-auto', 'a-prop', 'x-auto']) expect(ex.has(t)).toBe(false);
+  });
+
+  it('a live applied batch still excludes its threads', () => {
+    finishedBatch('l', false, 'applied');
+    const ex = repo.excludedThreads();
+    expect(ex.get('l-auto')).toBe('m1');
+    expect(ex.get('l-prop')).toBe('m2');
+  });
+
+  it('a dry-run batch still reviewing or applying excludes all its threads', () => {
+    finishedBatch('r', true, 'reviewing');
+    finishedBatch('y', true, 'applying');
+    const ex = repo.excludedThreads();
+    for (const t of ['r-auto', 'r-prop', 'y-auto', 'y-prop']) expect(ex.has(t)).toBe(true);
+  });
+
+  it('batchStatus reads one batch status', () => {
+    const a = repo.createBatch(sid, 1).id;
+    expect(repo.batchStatus(a)).toBe('running');
+    repo.setBatchStatus(a, 'applying');
+    expect(repo.batchStatus(a)).toBe('applying');
+    expect(repo.batchStatus('nope')).toBeUndefined();
+  });
+
   it('unfinishedBatch returns running/reviewing and ignores applied', () => {
     expect(repo.unfinishedBatch()).toBeUndefined();
     const a = repo.createBatch(sid, 1).id;
