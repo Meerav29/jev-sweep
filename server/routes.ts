@@ -41,7 +41,8 @@ export function hostGuard(port: number): MiddlewareHandler {
 export const jsonOnly: MiddlewareHandler = async (c, next) => {
   const m = c.req.method;
   const changes = m === 'POST' || m === 'PUT' || m === 'PATCH' || m === 'DELETE';
-  if (changes && !c.req.path.startsWith('/api/auth/')) {
+  // Only the OAuth GETs are exempt, and GETs never reach this check, so no path exemption is needed.
+  if (changes) {
     const type = (c.req.header('content-type') ?? '').split(';')[0].trim().toLowerCase();
     if (type !== 'application/json') return c.json({ error: 'Content-Type must be application/json' }, 415);
   }
@@ -169,6 +170,8 @@ export function apiRoutes(deps: ApiDeps): Hono {
   const resuming = new Map<string, Promise<void>>();
   /** Sessions whose next batch is being fetched (the batch row doesn't exist yet). */
   const starting = new Set<string>();
+  /** Batches with an apply request in flight here: a second one is refused rather than joined. */
+  const applying = new Set<string>();
 
   const known = (batchId: string): BatchStatus => {
     const s = repo.batchStatus(batchId);
@@ -202,12 +205,17 @@ export function apiRoutes(deps: ApiDeps): Hono {
     };
   }
 
-  /** Makes the batch viewable: loaded in the runner, or finished and readable from the repo. */
-  async function prepare(batchId: string): Promise<void> {
+  /**
+   * Makes the batch viewable: loaded in the runner, or finished and readable from the repo.
+   * Loading means resuming (Gmail calls, Jev carries on), which a cross-site page must not be able to trigger with a GET.
+   */
+  async function prepare(c: Context, batchId: string): Promise<void> {
     const status = known(batchId);
     const rt = services.runtime();
     if (rt?.runner.has(batchId) || FINISHED.includes(status)) return;
-    await ensureLoaded(rt ?? needRuntime(), batchId);
+    const loaded = rt ?? needRuntime();
+    if (c.req.header('sec-fetch-site')?.toLowerCase() === 'cross-site') throw new HttpError(403, 'cross-site request');
+    await ensureLoaded(loaded, batchId);
   }
 
   /** Synchronous, so a caller can pair it with a hub subscription in the same tick. Call prepare() first. */
@@ -248,7 +256,8 @@ export function apiRoutes(deps: ApiDeps): Hono {
 
   app.put('/api/settings', route(async (c) => c.json(repo.saveSettings(parseSettingsPatch(await jsonBody(c))))));
 
-  app.get('/api/sessions', route((c) => c.json(repo.listSessions())));
+  // A session with no batch is what a failed start leaves behind; it has nothing to show.
+  app.get('/api/sessions', route((c) => c.json(repo.listSessions().filter((s) => s.batches > 0))));
 
   app.post('/api/sessions', route(async (c) => {
     await jsonBody(c);
@@ -284,7 +293,7 @@ export function apiRoutes(deps: ApiDeps): Hono {
 
   app.get('/api/batches/:batchId', route(async (c) => {
     const id = param(c, 'batchId');
-    await prepare(id);
+    await prepare(c, id);
     return c.json(currentView(id));
   }));
 
@@ -346,11 +355,15 @@ export function apiRoutes(deps: ApiDeps): Hono {
     const status = known(id);
     const rt = needRuntime();
     if (status === 'running' || status === 'discarded') throw new HttpError(409, `batch is ${status}; only a reviewed batch can be applied`);
+    // A stored 'applying' with no entry here is a crashed apply; finishing it is allowed.
+    if (applying.has(id)) throw new HttpError(409, 'apply is already running for this batch');
+    applying.add(id);
     try {
       return c.json(await applyBatch({ mail: rt.mail, repo, emit: (b, e) => hub.emit(b, e) }, id));
     } catch (e) {
       throw new HttpError(500, `Apply failed: ${errMessage(e)}`);
     } finally {
+      applying.delete(id);
       rt.runner.refresh(id);
     }
   }));
@@ -377,10 +390,16 @@ export function apiRoutes(deps: ApiDeps): Hono {
 
   app.get('/api/batches/:id/events', route(async (c) => {
     const id = param(c, 'id');
-    await prepare(id);
+    const signal = c.req.raw.signal;
+    await prepare(c, id);
+    // Gone while the batch was resuming: the node server won't cancel the body, so onAbort would never fire.
+    if (signal.aborted) return c.body(null, 204);
     return streamSSE(c, async (stream) => {
       let chain: Promise<unknown> = Promise.resolve();
-      const enqueue = (write: () => Promise<unknown>) => { chain = chain.then(write).catch(() => {}); };
+      let done = false;
+      const enqueue = (write: () => Promise<unknown>) => {
+        if (!done) chain = chain.then(write).catch(() => {});
+      };
       // Serialized now: a later change to an object the runner still holds can't alter what was sent.
       const send = (e: SessionEvent) => {
         const data = JSON.stringify(e);
@@ -388,13 +407,20 @@ export function apiRoutes(deps: ApiDeps): Hono {
       };
       let off = () => {};
       let timer: ReturnType<typeof setInterval> | undefined;
-      const closed = new Promise<void>((resolve) => {
-        stream.onAbort(() => {
-          off();
-          clearInterval(timer);
-          resolve();
-        });
-      });
+      let finish = () => {};
+      const closed = new Promise<void>((resolve) => { finish = resolve; });
+      /** Idempotent: either the stream's abort or the request's signal can end it, or both. */
+      const cleanup = () => {
+        if (done) return;
+        done = true;
+        off();
+        clearInterval(timer);
+        signal.removeEventListener('abort', cleanup);
+        finish();
+      };
+      stream.onAbort(cleanup);
+      signal.addEventListener('abort', cleanup, { once: true });
+      if (signal.aborted) return cleanup();
       // Subscribe and read the snapshot in the same synchronous step: every event emitted before this point is
       // already in the view, and every later one is queued behind the snapshot. Nothing lost, nothing twice.
       off = hub.subscribe(id, send);

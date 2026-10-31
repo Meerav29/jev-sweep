@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { beforeEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { Hono } from 'hono';
 import { createApp } from '../../server/app';
 import { EventHub } from '../../server/events';
@@ -51,6 +51,7 @@ let repo: Repo;
 let hub: EventHub;
 let services: Services;
 let app: Hono;
+let fakeMail: FakeMail;
 
 function build(s: Services, opts: { heartbeatMs?: number; oauth?: Hono } = {}): Hono {
   services = s;
@@ -59,7 +60,9 @@ function build(s: Services, opts: { heartbeatMs?: number; oauth?: Hono } = {}): 
 }
 
 function fake(jev?: JevClient, heartbeatMs?: number): Hono {
-  return build(fakeServices({ repo, hub, fixture: raw, now, concurrency: 2, jev }), { heartbeatMs });
+  const s = fakeServices({ repo, hub, fixture: raw, now, concurrency: 2, jev });
+  fakeMail = s.fakeMail;
+  return build(s, { heartbeatMs });
 }
 
 beforeEach(() => {
@@ -682,4 +685,136 @@ test('staticServices wires injected providers', async () => {
   const { batchId } = await start();
   await s.runtime()!.runner.idle(batchId);
   expect(repo.loadBatch(batchId).decisions.length).toBeGreaterThan(0);
+});
+
+// ---- fix round 1 ----
+
+/** FakeMail whose getThread waits for a gate, so a resume (and the request waiting on it) can be held open. */
+class GatedMail extends FakeMail {
+  private open!: () => void;
+  readonly gate = new Promise<void>((r) => { this.open = r; });
+  waiting = 0;
+  release(): void { this.open(); }
+  async getThread(threadId: string): Promise<Email | null> {
+    this.waiting++;
+    await this.gate;
+    return super.getThread(threadId);
+  }
+}
+
+/** A batch with queued cards, left unloaded: the app now runs on a fresh runner whose mail blocks in getThread. */
+async function unloadedBatch(): Promise<{ batchId: string; mail: GatedMail }> {
+  const { batchId } = await start();
+  await runner().idle(batchId);
+  expect(runner().view(batchId).current).not.toBeNull();
+  const mail = new GatedMail(fixture);
+  build(staticServices({
+    repo, hub, mail, jev: new FakeJev(answers), writer: new FakeWriter(), concurrency: 2, now: () => now,
+    setup: () => ({ typesafe: true, anthropic: true, google: true, gmailConnected: true, foldersChosen: true, fake: true }),
+  }));
+  expect(runner().has(batchId)).toBe(false);
+  return { batchId, mail };
+}
+const tick = (ms = 10) => new Promise((r) => setTimeout(r, ms));
+
+describe('fix round 1', () => {
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  test('a client gone while the batch resumes leaves no subscription and no heartbeat', async () => {
+    const { batchId, mail } = await unloadedBatch();
+    const intervals = vi.spyOn(globalThis, 'setInterval');
+    const ac = new AbortController();
+    const pending = call(`/api/batches/${batchId}/events`, { signal: ac.signal });
+    await tick();
+    expect(mail.waiting).toBeGreaterThan(0); // stuck in prepare (resume → getThread)
+    ac.abort();
+    mail.release();
+    const res = await pending;
+    await runner().idle(batchId);
+    await tick();
+    expect(res.status).toBe(204);
+    expect(hub.count(batchId)).toBe(0);
+    expect(intervals).not.toHaveBeenCalled();
+  });
+
+  test("the request's abort signal also ends an open stream (idempotently)", async () => {
+    const { batchId } = await start();
+    const ac = new AbortController();
+    const clear = vi.spyOn(globalThis, 'clearInterval');
+    const res = await call(`/api/batches/${batchId}/events`, { signal: ac.signal });
+    const reader = res.body!.getReader();
+    await reader.read(); // the snapshot
+    expect(hub.count(batchId)).toBe(1);
+    ac.abort();
+    await tick();
+    expect(hub.count(batchId)).toBe(0);
+    expect(clear).toHaveBeenCalledTimes(1);
+    await reader.cancel(); // the stream's own abort afterwards: cleanup doesn't run twice
+    await tick();
+    expect(clear).toHaveBeenCalledTimes(1);
+  });
+
+  test('two parallel applies: one 200, one 409, Gmail written once', async () => {
+    const { batchId } = await start();
+    await reviewAll(batchId);
+    const before = fakeMail.log.length;
+    const [a, b] = await Promise.all([post(`/api/batches/${batchId}/apply`), post(`/api/batches/${batchId}/apply`)]);
+    expect([a.status, b.status].sort()).toEqual([200, 409]);
+    const writes = fakeMail.log.slice(before);
+    expect(writes.length).toBeGreaterThan(0);
+    expect(new Set(writes).size).toBe(writes.length);
+    expect(repo.batchStatus(batchId)).toBe('applied');
+  });
+
+  test('a stored applying status with no apply in flight (crash) can still be applied', async () => {
+    const { batchId } = await start();
+    await reviewAll(batchId);
+    repo.setBatchStatus(batchId, 'applying');
+    const res = await post(`/api/batches/${batchId}/apply`);
+    expect(res.status).toBe(200);
+    expect(repo.batchStatus(batchId)).toBe('applied');
+  });
+
+  test('a cross-site GET cannot resume an unloaded running batch', async () => {
+    const { batchId, mail } = await unloadedBatch();
+    const xs = { 'Sec-Fetch-Site': 'cross-site' };
+    expect((await call(`/api/batches/${batchId}`, { headers: xs })).status).toBe(403);
+    expect((await call(`/api/batches/${batchId}/events`, { headers: xs })).status).toBe(403);
+    expect(runner().has(batchId)).toBe(false);
+    expect(mail.waiting).toBe(0);
+    mail.release();
+    const same = await call(`/api/batches/${batchId}`, { headers: { 'Sec-Fetch-Site': 'same-origin' } });
+    expect(same.status).toBe(200);
+    expect(runner().has(batchId)).toBe(true);
+    // Once loaded, viewing it resumes nothing, so the header no longer matters.
+    expect((await call(`/api/batches/${batchId}`, { headers: xs })).status).toBe(200);
+    await runner().idle(batchId);
+  });
+
+  test('the JSON exemption for /api/auth/ covers GET only', async () => {
+    build(fakeServices({ repo, hub, fixture: raw, now, concurrency: 2 }),
+      { oauth: oauthRoutes(loadConfig({}), join(tmpdir(), 'none.json')) });
+    expect((await call('/api/auth/google', { method: 'POST' })).status).toBe(415);
+    expect((await call('/api/auth/google/callback?code=x&state=y', { method: 'POST', body: 'a=b',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' } })).status).toBe(415);
+    expect((await call('/api/auth/google')).status).toBe(400); // GET still reaches the OAuth route
+  });
+
+  test('sessions with no batch (a failed start) are not listed', async () => {
+    class BrokenMail extends FakeMail {
+      async fetchBatch(): Promise<Email[]> { throw new Error('gmail down'); }
+    }
+    build(staticServices({
+      repo, hub, mail: new BrokenMail(fixture), jev: new FakeJev(answers), writer: new FakeWriter(), concurrency: 1,
+      setup: () => ({ typesafe: true, anthropic: true, google: true, gmailConnected: true, foldersChosen: true, fake: false }),
+    }));
+    const res = await post('/api/sessions');
+    expect(res.status).toBe(502);
+    expect(repo.listSessions()).toHaveLength(1);
+    expect(await (await call('/api/sessions')).json()).toEqual([]);
+    fake();
+    const { sessionId } = await start();
+    const listed = (await (await call('/api/sessions')).json()) as { id: string }[];
+    expect(listed.map((s) => s.id)).toEqual([sessionId]);
+  });
 });
