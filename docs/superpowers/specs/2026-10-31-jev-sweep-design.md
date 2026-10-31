@@ -45,6 +45,7 @@ It's open source and local. Anyone can clone it and run it on localhost with the
 - **The UI blocking on the model.** If the screen freezes while Jev or Claude works, the design has failed.
 - **The LLM generating UI.** Components are a fixed set. No model writes markup.
 - **Leaking keys.** Keys live only on the local server. The browser never sees the TypeSafe, Anthropic or Google secrets.
+- **Only working on the author's machine.** It's an open-source project people run locally with their own accounts (TypeSafe, Anthropic, Google). If setup needs anything beyond the README, it's a bug.
 
 ## 5. Decisions made in brainstorming (Meerav's)
 
@@ -79,7 +80,7 @@ browser (React)  <-- SSE events / HTTP actions -->  local server (Node)
 
 ### 6.2 The batch pipeline (per batch)
 
-1. **Fetch.** Get the next N threads matching the session query, oldest first. Default query (my call, reused from inbox-triage, which Meerav approved): `in:inbox is:unread -category:promotions -category:social`. It's configurable in settings. Collect sender, address, subject, date, Gmail labels, and plain-text body (truncated to roughly 2,000 characters for Jev, and less for display).
+1. **Fetch.** Get the next N threads matching the session query, oldest first. Default query (my call): `in:inbox is:unread -category:promotions -category:social`. Inbox-triage used this; it suits most Gmail accounts, since accounts without inbox tabs simply ignore the category filters. It's configurable in settings. Collect sender, address, subject, date, Gmail labels, and plain-text body (truncated to roughly 2,000 characters for Jev, and less for display).
    **Skip threads already decided** (my call): exclude any thread ID that has a decision in SQLite, unless a newer message has arrived in it since (compare the thread's latest message ID). Without this, "keep in inbox" threads stay unread and would come back at the front of every batch. Gmail itself isn't changed to do this. Threads that belong to an unfinished, resumable batch are also excluded from new batches.
 2. **Ask Jev.** One `systemone` request per email, with all questions together (they run in parallel at about the same cost in time). Run several emails at once with a small concurrency limit (my call: 6) so the queue and stream fill steadily.
 3. **Apply policy** (code, §6.4) to Jev's answers. The outcome is one of: `auto_archive`, `proposed` (Jev is confident about a destination that isn't archive; it waits for the board), or `queue` (needs the human).
@@ -148,7 +149,9 @@ SQLite file in the project folder (git-ignored). Tables for sessions, batches, e
 - `.env` with `TYPESAFE_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`.
 - The README walks through making a Google Cloud OAuth client (Desktop app type, Gmail API enabled, scope `gmail.modify`) and a one-time "Connect Gmail" button that stores the refresh token locally (git-ignored).
 - `npm install && npm run dev` starts the server and the UI.
-- For development, Meerav makes his own Google Cloud OAuth client and connects his inbox; his TypeSafe key already lives in `Github-Projects/.env.local`. A **fake inbox mode** (built from the prototype's sample data, with simulated Gmail) must work with no Google setup, so most of the app can be built and tested before real Gmail is connected. First real runs use dry run mode.
+- **First-run setup screen** (my call): on first launch, and whenever something is missing, the app shows a short checklist instead of the home screen: TypeSafe key found, Anthropic key found, Google client found, Gmail connected, folders chosen. Each item links to the README step that fixes it. The goal is that a stranger can go from `git clone` to a first session without reading code.
+- **Nothing in the repo is specific to one person.** No hard-coded emails, labels, queries or paths. Defaults (query, thresholds, batch size) are generic, and everything about the user's mailbox (labels, descriptions) is read from their Gmail or set in settings. Every secret and token stays in git-ignored local files.
+- For development, Meerav follows the same setup as any user, with his own Google OAuth client and keys in `.env`. A **fake inbox mode** (built from the prototype's sample data, with simulated Gmail) must work with no Google setup, so most of the app can be built and tested before real Gmail is connected. First real runs use dry run mode.
 
 ## 7. Stack (my calls; Meerav handed these over)
 
