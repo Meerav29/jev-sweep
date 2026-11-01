@@ -425,6 +425,25 @@ test('on the live board a dry-run chip gets a dry-run tag, while a real applied 
   await settle();
 });
 
+test('dry run switched on mid-batch: the applied batch says nothing changed', async () => {
+  mount();
+  FakeES.last!.emit({ type: 'snapshot', view: view({ status: 'applied', dryRun: false, decisions: [
+    dec('d', 1, 'archive', { status: 'applied', note: 'dry run' }), dec('s', 2, 'keep', { status: 'skipped', note: 'changed in Gmail' }),
+  ] }) });
+  expect(screen.getByText('Dry run: nothing was changed in Gmail.')).toBeTruthy();
+  expect(screen.queryByText('These moves have been applied in Gmail.')).toBeNull();
+  await settle();
+});
+
+test('a batch with both real and dry-run writes says some were applied', async () => {
+  mount({ readOnly: true });
+  FakeES.last!.emit({ type: 'snapshot', view: view({ status: 'applied', dryRun: false, decisions: [
+    dec('a', 1, 'archive', { status: 'auto_applied' }), dec('d', 2, 'keep', { status: 'applied', note: 'dry run' }),
+  ] }) });
+  expect(screen.getByText('Some moves were applied in Gmail; dry-run ones were not.')).toBeTruthy();
+  await waitFor(() => expect(calls.some((c) => c.url === '/api/sessions')).toBe(true));
+});
+
 // ---- resume (Home) ----
 
 test('Resume asks the server, then opens the Session screen for a running batch', async () => {

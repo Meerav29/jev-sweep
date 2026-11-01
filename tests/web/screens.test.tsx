@@ -67,6 +67,14 @@ test('Home marks a dry-run past session', async () => {
   expect(within(realRow).queryByText('dry run')).toBeNull();
 });
 
+test('Home marks a partly dry-run past session', async () => {
+  stubApi([summary({ id: 'p', lastBatchId: 'b1', partlyDryRun: true })]);
+  render(<Home onSession={() => {}} onReview={() => {}} onPast={() => {}} onFolders={() => {}} />);
+  const row = (await screen.findByText('10 emails')).closest('button')!;
+  expect(within(row).getByText('partly dry run')).toBeTruthy();
+  expect(within(row).queryByText('dry run')).toBeNull();
+});
+
 test('Home saves the batch size through PUT /api/settings with a JSON body', async () => {
   stubApi([]);
   render(<Home onSession={() => {}} onReview={() => {}} onPast={() => {}} onFolders={() => {}} />);

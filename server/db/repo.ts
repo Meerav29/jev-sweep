@@ -235,8 +235,10 @@ export class Repo {
     const lastStmt = this.db.prepare(
       `SELECT id FROM batches WHERE session_id = ? AND status != 'discarded' ORDER BY (total > 0) DESC, rowid DESC LIMIT 1`);
 
-    const dryStmt = this.db.prepare(
-      `SELECT COUNT(*) AS n, COALESCE(SUM(dry_run = 1), 0) AS d FROM batches WHERE session_id = ? AND status != 'discarded' AND total > 0`);
+    // Judged by what the writes did, not the batch flag: dry run can be switched on mid-batch.
+    const dryStmt = this.db.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(d.note = 'dry run'), 0) AS d
+      FROM decisions d JOIN batches b ON b.id = d.batch_id
+      WHERE b.session_id = ? AND b.status != 'discarded' AND d.status IN ('applied', 'auto_applied')`);
 
     return sessions.map((s) => {
       const bt = batchStmt.get(s.id) as { c: number; t: number };
@@ -251,6 +253,7 @@ export class Repo {
       if (last) out.lastBatchId = last.id;
       const dry = dryStmt.get(s.id) as { n: number; d: number };
       if (dry.n > 0 && dry.d === dry.n) out.dryRun = true;
+      else if (dry.d > 0) out.partlyDryRun = true;
       return out;
     });
   }

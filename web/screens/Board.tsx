@@ -186,8 +186,15 @@ export function Board({ batchId, readOnly, onHome, onSession }: Props) {
     : `Batch ${view.batchNo} · where everything's going`;
   const applied = view?.status === 'applied';
   const empty = applied && view.total === 0;
+  // Dry run can be switched on mid-batch, so the notes say what really happened, not just the batch's flag.
+  const wrote = decisions.filter((d) => d.status === 'applied' || d.status === 'auto_applied');
+  const dryWrites = wrote.filter((d) => d.note === DRY_RUN).length;
+  const mixed = dryWrites > 0 && dryWrites < wrote.length;
+  const wasDry = dryRun || dryWrites > 0;
+  const finished = applied || readOnly;
   // A dry-run receipt must never pass for a real one, so it says so even read-only.
-  const sub = dryRun && (applied || readOnly) ? 'Dry run: nothing was changed in Gmail.'
+  const sub = finished && mixed ? 'Some moves were applied in Gmail; dry-run ones were not.'
+    : finished && wasDry ? 'Dry run: nothing was changed in Gmail.'
     : applied ? 'These moves have been applied in Gmail.'
     : `Drag a card to change where it goes. Nothing has moved in Gmail yet.${dryRun ? ` (${DRY_RUN_NOTE})` : ''}`;
   const shownError = actionError ?? error;
@@ -252,7 +259,7 @@ export function Board({ batchId, readOnly, onHome, onSession }: Props) {
         <div className="bttl">
           <button type="button" className="btn ghost back" onClick={onHome}>← Sessions</button>
           <h1>{title}</h1>
-          {(!readOnly || dryRun) && <p className="sub">{sub}</p>}
+          {(!readOnly || wasDry) && <p className="sub">{sub}</p>}
         </div>
         <div className="legend" data-testid="legend">
           <span style={{ ['--c' as string]: 'var(--strong)' }}>you decided</span>
