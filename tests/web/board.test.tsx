@@ -80,7 +80,7 @@ test('chips are grouped into columns, Archived first and Inbox last', async () =
   expect(cols.map((c) => c.getAttribute('data-dest'))).toEqual(['archive', 'label:Travel', 'keep']);
   expect(within(cols[1]).getAllByText(/^subject /).map((e) => e.textContent)).toEqual(['subject t', 'subject i']);
   expect(screen.getByRole('heading', { level: 1 }).textContent).toBe("Batch 2 · where everything's going");
-  expect(screen.getByText('Drag a card to change where it goes. Nothing has moved in Gmail yet.')).toBeTruthy();
+  expect(screen.getByText("Drag a card to change where it goes. Only Jev's sure archives have moved. Nothing else changes in Gmail until you apply.")).toBeTruthy();
   const legend = screen.getByTestId('legend');
   expect(legend.textContent).toBe('you decidedimportantJev decided');
   await settle();
