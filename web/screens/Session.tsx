@@ -142,6 +142,7 @@ export function Session({ batchId, onBack, onReviewing }: Props) {
         <div className="ttl-wrap">
           <div className="ttl">{view ? `Batch ${view.batchNo}` : 'Batch'}</div>
           <div className="meta">{view ? `${decisions.length} of ${total} sorted · Jev has read ${view.read}` : 'Loading…'}</div>
+          {view && view.fetched < total && <div className="meta">{`Fetching from Gmail… ${view.fetched} of ${total}`}</div>}
         </div>
         <div className="sp" />
         <div className="counts" data-testid="counts">

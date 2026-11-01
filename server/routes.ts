@@ -3,6 +3,7 @@ import type { Context, MiddlewareHandler } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { streamSSE } from 'hono/streaming';
 import type { BatchStatus, BatchView, Dest, Folder, SessionEvent, Settings, Thresholds } from '../shared/types';
+import { isArchiveName, isSystemLabel } from '../shared/labels';
 import type { Repo } from './db/repo';
 import type { EventHub } from './events';
 import type { Runtime, Services } from './services';
@@ -51,12 +52,7 @@ export const jsonOnly: MiddlewareHandler = async (c, next) => {
 
 // ---- validation ----
 
-const SYSTEM_LABELS = new Set(['INBOX', 'SPAM', 'TRASH', 'UNREAD', 'STARRED', 'IMPORTANT', 'SENT', 'DRAFT', 'CHAT']);
-
-export function isSystemLabel(name: string): boolean {
-  const u = name.trim().toUpperCase();
-  return SYSTEM_LABELS.has(u) || u.startsWith('CATEGORY_');
-}
+export { isSystemLabel };
 
 function checkFolderName(name: unknown, what: string): string {
   if (typeof name !== 'string' || name.trim() === '') throw bad(`${what} must be a non-empty string`);
@@ -67,7 +63,9 @@ function checkFolderName(name: unknown, what: string): string {
 export function parseDest(v: unknown): Dest {
   if (v === 'archive' || v === 'keep') return v;
   if (typeof v === 'string' && v.startsWith('label:')) {
-    checkFolderName(v.slice('label:'.length), 'label name');
+    const name = v.slice('label:'.length);
+    if (isArchiveName(name)) return 'archive';
+    checkFolderName(name, 'label name');
     return v as Dest;
   }
   throw bad('dest must be "archive", "keep" or "label:<name>"');
@@ -79,7 +77,7 @@ function threadIdOf(b: Record<string, unknown>): string {
 }
 
 const BATCH_SIZES = [10, 20, 30, 50];
-const UNIT_THRESHOLDS = ['guardNoul', 'importantQueue', 'needsReplyQueue', 'autoArchiveConfidence', 'proposeConfidence'] as const;
+const UNIT_THRESHOLDS = ['guardNoul', 'importantQueue', 'needsReplyQueue', 'autoArchiveConfidence', 'proposeConfidence', 'staleConfidence', 'junkMaxKeep'] as const;
 
 function parseFolder(v: unknown, i: number): Folder {
   if (!v || typeof v !== 'object' || Array.isArray(v)) throw bad(`folders[${i}] must be an object`);
@@ -119,9 +117,9 @@ export function parseSettingsPatch(b: Record<string, unknown>): Partial<Settings
         if (!v || typeof v !== 'object' || Array.isArray(v)) throw bad('thresholds must be an object');
         const t: Partial<Thresholds> = {};
         for (const [tk, tv] of Object.entries(v as Record<string, unknown>)) {
-          if (tk === 'recentDays') {
-            if (typeof tv !== 'number' || !Number.isInteger(tv) || tv <= 0) throw bad('thresholds.recentDays must be a positive integer');
-            t.recentDays = tv;
+          if (tk === 'recentDays' || tk === 'staleDays') {
+            if (typeof tv !== 'number' || !Number.isInteger(tv) || tv <= 0) throw bad(`thresholds.${tk} must be a positive integer`);
+            t[tk] = tv;
           } else if ((UNIT_THRESHOLDS as readonly string[]).includes(tk)) {
             if (typeof tv !== 'number' || !Number.isFinite(tv) || tv < 0 || tv > 1) throw bad(`thresholds.${tk} must be a number from 0 to 1`);
             t[tk as typeof UNIT_THRESHOLDS[number]] = tv;
@@ -200,7 +198,8 @@ export function apiRoutes(deps: ApiDeps): Hono {
     const lb = repo.loadBatch(batchId);
     const read = new Set([...lb.decisions.map((d) => d.threadId), ...Object.keys(lb.jev)]).size;
     return {
-      sessionId: lb.sessionId, batchId, batchNo: lb.batchNo, total: lb.total, read, status: lb.status,
+      // Nothing fetches for a batch the runner hasn't loaded, so it reads as fully fetched.
+      sessionId: lb.sessionId, batchId, batchNo: lb.batchNo, total: lb.total, read, fetched: lb.total, status: lb.status,
       paused: false, dryRun: lb.dryRun, decisions: lb.decisions, queue: [], current: null,
     };
   }

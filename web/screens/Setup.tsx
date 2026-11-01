@@ -18,8 +18,9 @@ export function Setup({ status, authError, onFolders, onRecheck }: Props) {
       fix: <a href={`${README}typesafe`} target="_blank" rel="noreferrer">How to add it</a>,
     },
     {
-      key: 'anthropic', ok: status.anthropic, title: 'Anthropic key found', hint: 'ANTHROPIC_API_KEY in .env',
-      fix: <a href={`${README}anthropic`} target="_blank" rel="noreferrer">How to add it</a>,
+      key: 'anthropic', ok: status.anthropic, title: 'Anthropic key found (optional)',
+      hint: 'ANTHROPIC_API_KEY in .env. Adds the "why" line and summaries on cards',
+      fix: <a href={`${README}anthropic`} target="_blank" rel="noreferrer">Optional: how to add it</a>,
     },
     {
       key: 'google', ok: status.google, title: 'Google client found', hint: 'GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env',

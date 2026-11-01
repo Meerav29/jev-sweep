@@ -11,22 +11,24 @@ test('loadFakeInbox converts daysAgo to an ISO date', () => {
   const [r] = loadFakeInbox([{ ...fixture[0], daysAgo: 2 }], now);
   expect(r.date).toBe('2026-10-29T12:00:00.000Z');
 });
-test('fake fetchBatch is oldest first and honours exclusions', async () => {
+test('fake listCandidates is oldest first and honours exclusions', async () => {
   const ex = new Map([[fixture[0].threadId, fixture[0].latestMessageId]]);
-  const b = await m.fetchBatch('', 5, ex);
-  expect(b.map(e => e.threadId)).not.toContain(fixture[0].threadId);
-  expect([...b].sort((x, y) => x.date.localeCompare(y.date))).toEqual(b);
+  const b = await m.listCandidates('', 5, ex);
+  expect(b.map(c => c.threadId)).not.toContain(fixture[0].threadId);
+  const dates = b.map(c => fixture.find(f => f.threadId === c.threadId)!.date);
+  expect([...dates].sort()).toEqual(dates);
   expect(b).toHaveLength(5);
+  expect(b[0]).toEqual({ threadId: b[0].threadId, latestMessageId: fixture.find(f => f.threadId === b[0].threadId)!.latestMessageId });
 });
 test('excluded thread comes back when a new message arrives', async () => {
   const ex = new Map([[fixture[0].threadId, 'old-message-id']]);
-  expect((await m.fetchBatch('', 50, ex)).map(e => e.threadId)).toContain(fixture[0].threadId);
+  expect((await m.listCandidates('', 50, ex)).map(c => c.threadId)).toContain(fixture[0].threadId);
 });
 test('archive removes INBOX and logs; unarchive restores', async () => {
   const id = fixture[0].threadId;
   await m.archive(id);
   expect((await m.getThread(id))!.labels).not.toContain('INBOX');
-  expect((await m.fetchBatch('', 100, new Map())).map(e => e.threadId)).not.toContain(id);
+  expect((await m.listCandidates('', 100, new Map())).map(c => c.threadId)).not.toContain(id);
   await m.unarchive(id);
   expect((await m.getThread(id))!.labels).toContain('INBOX');
   expect(m.log).toEqual([`archive:${id}`, `unarchive:${id}`]);

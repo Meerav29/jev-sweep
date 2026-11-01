@@ -1,10 +1,16 @@
 import type { Email } from '../../shared/types';
 
+/** A thread picked for a batch, before its full fetch. */
+export interface Candidate { threadId: string; latestMessageId: string }
+
 export interface MailProvider {
   /** User labels only: no system labels, no names starting with `[` or containing `CATEGORY_`. */
   listLabels(): Promise<string[]>;
-  /** Oldest first. Skips threads whose id is in `excluded` with the same latestMessageId. */
-  fetchBatch(query: string, n: number, excluded: Map<string, string>): Promise<Email[]>;
+  /**
+   * Up to `n` threads matching `query`, oldest first, with each one's latest message id (no bodies).
+   * Skips threads whose id is in `excluded` with the same latestMessageId. Fetch each in full with getThread.
+   */
+  listCandidates(query: string, n: number, excluded: Map<string, string>): Promise<Candidate[]>;
   getThread(threadId: string): Promise<Email | null>;
   archive(threadId: string): Promise<void>;
   unarchive(threadId: string): Promise<void>;

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { folderDest } from '../../shared/labels';
 import type { CardProps } from './registry';
 import { CardHead, ChoiceError, FolderCombo, GmailLink, Options, Sender, useChoice, useOptionKeys } from './parts';
 
@@ -38,7 +39,7 @@ export function ImportantCard({ card, folders, onChoose, context }: CardProps) {
           <div className="k">Where should it go?</div>
           {!noOptions && <Options options={card.options} win={win} onPick={pickOption} />}
           <div className="row card-row">
-            <FolderCombo folders={folders} disabled={win !== null} onPick={(name) => choose(`label:${name}`, undefined, 'other')} />
+            <FolderCombo folders={folders} disabled={win !== null} onPick={(name) => choose(folderDest(name), undefined, 'other')} />
             {noOptions && (
               <>
                 <button type="button" className="btn" onClick={() => choose('archive', undefined, 'archive')}>Archive</button>

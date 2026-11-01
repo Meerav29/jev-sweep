@@ -12,6 +12,7 @@ import type { BatchView, Email, Folder, JevAnswers, QueueItem, SessionEvent } fr
 const now = new Date('2026-10-31T12:00:00Z');
 const fixture = loadFakeInbox(JSON.parse(readFileSync('fixtures/fake-inbox.json', 'utf8')), now);
 const byId = new Map(fixture.map((f) => [f.threadId, f]));
+const N = fixture.length; // the whole fake inbox
 
 /** FakeMail where chosen threads vanish (getThread → null) or fail to archive. */
 class TestMail extends FakeMail {
@@ -23,7 +24,32 @@ class TestMail extends FakeMail {
   newMessage = new Set<string>();
   /** archive() for these threads waits until the promise resolves. */
   archiveGates = new Map<string, Promise<void>>();
+  /** Every getThread call, in call order. */
+  getThreadCalls: string[] = [];
+  /** While set, every getThread waits on it (a deferred Gmail answer). */
+  getThreadGate: Promise<void> | null = null;
+  /** getThread calls beyond this many never answer (a crash mid-fetch). */
+  fetchBudget = Infinity;
+  /** Each getThread waits a few ticks, so concurrent fetches overlap. */
+  slowGetThread = false;
+  getThreadInFlight = 0;
+  maxGetThreadInFlight = 0;
+  listFails = false;
+  async listCandidates(query: string, n: number, excluded: Map<string, string>) {
+    if (this.listFails) throw new Error('gmail down');
+    return super.listCandidates(query, n, excluded);
+  }
   async getThread(threadId: string): Promise<Email | null> {
+    this.getThreadCalls.push(threadId);
+    if (this.fetchBudget-- <= 0) await new Promise<never>(() => {});
+    this.getThreadInFlight++;
+    this.maxGetThreadInFlight = Math.max(this.maxGetThreadInFlight, this.getThreadInFlight);
+    try {
+      if (this.getThreadGate) await this.getThreadGate;
+      if (this.slowGetThread) for (let i = 0; i < 3; i++) await new Promise((r) => setImmediate(r));
+    } finally {
+      this.getThreadInFlight--;
+    }
     if (this.getThreadFails.has(threadId)) throw new Error('gmail 500');
     if (this.gone.has(threadId)) return null;
     const e = await super.getThread(threadId);
@@ -59,7 +85,7 @@ const ofType = <T extends SessionEvent['type']>(id: string, t: T) =>
 
 beforeEach(() => {
   repo = new Repo(':memory:');
-  repo.saveSettings({ batchSize: 50 }); // the whole 38-item fixture, so important emails are in the batch
+  repo.saveSettings({ batchSize: 50 }); // the whole whole fixture, so important emails are in the batch
   mail = new TestMail(fixture);
   jev = new FakeJev(Object.fromEntries(fixture.map((f) => [f.threadId, f.jev])));
   writer = new FakeWriter(Object.fromEntries(fixture.filter((f) => f.summary).map((f) => [f.threadId, f.summary!])));
@@ -96,7 +122,7 @@ function mirror(batchId: string): BatchView {
         if (e.card) v.queue = v.queue.filter((q) => q.threadId !== e.card!.threadId);
         break;
       case 'card_text': break; // the runner re-emits `current` when the text belongs to it
-      case 'progress': v.read = e.read; v.total = e.total; v.paused = e.paused; break;
+      case 'progress': v.read = e.read; v.fetched = e.fetched; v.total = e.total; v.paused = e.paused; break;
       case 'status': v.status = e.status; break;
       default: break;
     }
@@ -108,11 +134,11 @@ function mirror(batchId: string): BatchView {
 test('jev keeps processing while a card waits', async () => {
   const id = await runner.start(sessionId); await settle();
   const v = runner.view(id);
-  expect(v.total).toBe(38);
+  expect(v.total).toBe(N);
   expect(v.read).toBe(v.total); // never blocked on the human
   expect(v.current).not.toBeNull(); expect(v.queue.length).toBeGreaterThan(0);
   expect(v.status).toBe('running');
-  expect(ofType(id, 'progress').at(-1)).toEqual({ type: 'progress', read: 38, total: 38, paused: false });
+  expect(ofType(id, 'progress').at(-1)).toEqual({ type: 'progress', read: N, fetched: N, total: N, paused: false });
 });
 
 test('important cards come first', async () => {
@@ -223,7 +249,7 @@ test('reviewing once everything is answered', async () => {
   expect(ofType(id, 'current').at(-1)).toEqual({ type: 'current', card: null });
   expect(v.status).toBe('reviewing');
   expect(repo.loadBatch(id).status).toBe('reviewing');
-  expect(v.decisions.length).toBe(38);
+  expect(v.decisions.length).toBe(N);
 });
 
 test('a batch that fetches nothing goes straight to applied: there is nothing to review', async () => {
@@ -231,7 +257,7 @@ test('a batch that fetches nothing goes straight to applied: there is nothing to
   const id = await runner.start(sessionId); await settle();
   expect(events.map((x) => x.e.type)).toEqual(['snapshot', 'status']);
   expect(events[1].e).toEqual({ type: 'status', status: 'applied' });
-  expect(runner.view(id)).toMatchObject({ status: 'applied', total: 0, read: 0, current: null });
+  expect(runner.view(id)).toMatchObject({ status: 'applied', total: 0, read: 0, fetched: 0, current: null });
   expect(repo.loadBatch(id).status).toBe('applied');
   // Not left open, so Home stops offering to resume it and a next batch can start.
   expect(repo.listSessions().find((s) => s.id === sessionId)?.unfinishedBatchId).toBeUndefined();
@@ -243,7 +269,7 @@ test('a failed auto-archive is recorded and the pool keeps going', async () => {
   const v = runner.view(id);
   expect(v.decisions.find((d) => d.threadId === 't1')).toMatchObject({ status: 'failed', note: 'boom', who: 'jev', dest: 'archive' });
   expect(ofType(id, 'error').length).toBe(1);
-  expect(v.read).toBe(38);
+  expect(v.read).toBe(N);
   expect(mail.log).toContain('archive:t2');
 });
 
@@ -252,12 +278,12 @@ test('pause stops new jev calls; continue finishes the batch', async () => {
   runner.pause(id); await settle();
   const paused = runner.view(id);
   expect(paused.paused).toBe(true);
-  expect(paused.read).toBeLessThan(38);
+  expect(paused.read).toBeLessThan(N);
   expect(jev.calls).toBe(paused.read);
   expect(ofType(id, 'progress').at(-1)!.paused).toBe(true);
   runner.continue(id); await settle();
-  expect(runner.view(id)).toMatchObject({ paused: false, read: 38 });
-  expect(jev.calls).toBe(38);
+  expect(runner.view(id)).toMatchObject({ paused: false, read: N });
+  expect(jev.calls).toBe(N);
 });
 
 test('the pool never runs more than `concurrency` jev calls at once', async () => {
@@ -273,7 +299,7 @@ test('the pool never runs more than `concurrency` jev calls at once', async () =
   runner = makeRunner(slow);
   const id = await runner.start(sessionId); await settle();
   expect(max).toBe(2);
-  expect(runner.view(id).read).toBe(38);
+  expect(runner.view(id).read).toBe(N);
 });
 
 test('move sets a board decision without touching gmail', async () => {
@@ -404,7 +430,7 @@ test('events mirror the view mid-run too (pushes after a jump)', async () => {
   const q = runner.view(id).queue;
   if (q.length > 0) runner.jumpTo(id, q.at(-1)!.threadId); // pins the old current at the front
   release(); await settle();
-  expect(runner.view(id).read).toBe(38);
+  expect(runner.view(id).read).toBe(N);
   expect(mirror(id)).toEqual(runner.view(id));
 });
 
@@ -420,7 +446,7 @@ test('resume restores queue and does not re-ask Jev', async () => {
   expect(after.queue).toEqual(before.queue);
   expect(after.current).toEqual(before.current); // body re-fetched with getThread
   expect(after.decisions).toEqual(before.decisions);
-  expect(after.read).toBe(38);
+  expect(after.read).toBe(N);
   expect(jev.calls).toBe(calls);
   expect(events[0].e.type).toBe('snapshot');
   expect(mirror(id)).toEqual(after);
@@ -447,16 +473,19 @@ test('resume continues emails Jev had not reached', async () => {
   const id = await runner.start(sessionId);
   runner.pause(id); await settle();
   const stored = repo.loadBatch(id);
-  const pending = stored.emails.map((e) => e.email.threadId).filter((t) => !stored.jev[t]);
-  expect(pending.length).toBeGreaterThan(1);
-  const gone = pending.at(-1)!;
+  // Fetched but unanswered (re-fetched on resume), plus candidates the pause kept from being fetched at all.
+  const fetchedPending = stored.emails.map((e) => e.email.threadId).filter((t) => !stored.jev[t]);
+  const pending = stored.candidates.map((c) => c.threadId).filter((t) => !stored.jev[t]);
+  expect(fetchedPending.length).toBeGreaterThan(1);
+  expect(pending.length).toBeGreaterThan(fetchedPending.length);
+  const gone = fetchedPending.at(-1)!;
   mail.gone.add(gone);
   const calls = jev.calls;
   runner = makeRunner();
   await runner.resume(id); await settle();
   const v = runner.view(id);
   expect(jev.calls).toBe(calls + pending.length - 1);
-  expect(v.read).toBe(38);
+  expect(v.read).toBe(N);
   expect(v.paused).toBe(false);
   expect(v.decisions.find((d) => d.threadId === gone)).toMatchObject({ status: 'skipped', note: 'changed in Gmail' });
   expect(mirror(id)).toEqual(v);
@@ -480,7 +509,7 @@ test('dry run sticks to the batch: turning it off before resume still writes not
   repo.saveSettings({ dryRun: false });
   runner = makeRunner();
   await runner.resume(id); await settle();
-  expect(runner.view(id).read).toBe(38);
+  expect(runner.view(id).read).toBe(N);
   expect(runner.view(id).dryRun).toBe(true);
   expect(mail.log).toEqual([]);
   expect(runner.view(id).decisions.filter((d) => d.status === 'auto_applied').every((d) => d.note === 'dry run')).toBe(true);
@@ -509,7 +538,7 @@ test('a throw while processing fails that thread instead of leaving the batch ru
   for (let i = 0; runner.view(id).current && i < 100; i++) runner.resolve(id, runner.view(id).current!.threadId, 'keep');
   const v = runner.view(id);
   expect(v.status).toBe('reviewing');
-  expect(v.read).toBe(38);
+  expect(v.read).toBe(N);
   expect(v.decisions.find((d) => d.threadId === bad)).toMatchObject({ status: 'failed', dest: 'keep', who: 'jev' });
   expect(v.decisions.find((d) => d.threadId === bad)!.note).toContain('gmail 500');
   expect(ofType(id, 'error').filter((e) => e.message.includes('gmail 500')).length).toBe(1);
@@ -593,8 +622,9 @@ test('resume skips a thread with a stored Jev answer whose latest message change
   // Simulate a crash between saveJev and acting: answers stored, no decision, not queued.
   const id = await runner.start(sessionId);
   runner.pause(id); await settle();
-  const pendingBefore = repo.loadBatch(id).emails.map((e) => e.email.threadId).filter((t) => !repo.loadBatch(id).jev[t]);
-  const answered = pendingBefore[0];
+  const stored = repo.loadBatch(id);
+  const answered = stored.emails.map((e) => e.email.threadId).filter((t) => !stored.jev[t])[0];
+  const pendingBefore = stored.candidates.map((c) => c.threadId).filter((t) => !stored.jev[t]); // incl. never fetched
   repo.saveJev(id, answered, byId.get(answered)!.jev);
 
   mail.newMessage.add(answered);
@@ -606,7 +636,7 @@ test('resume skips a thread with a stored Jev answer whose latest message change
   expect(v.decisions.find((d) => d.threadId === answered)).toMatchObject({ status: 'skipped', note: 'changed in Gmail' });
   expect(jev.calls).toBe(calls + pendingBefore.length - 1); // never re-asked, never acted on
   expect(mail.log).not.toContain(`archive:${answered}`);
-  expect(v.read).toBe(38);
+  expect(v.read).toBe(N);
   expect(mirror(id)).toEqual(v);
 
 });
@@ -647,4 +677,136 @@ test("resume doesn't count answered-but-undecided threads as done", async () => 
   const reviewingAt = seq.findIndex((e) => e.type === 'status' && e.status === 'reviewing');
   expect(reviewingAt).toBeGreaterThan(seq.map((e) => e.type).lastIndexOf('decided'));
   expect(mirror(id)).toEqual(v);
+});
+
+// ---- streaming start (task 15) ----
+
+const ticks = async (n = 20) => { for (let i = 0; i < n; i++) await new Promise((r) => setImmediate(r)); };
+
+test('start returns once candidates are listed, before any full fetch answers, then fills in', async () => {
+  let release!: () => void;
+  mail.getThreadGate = new Promise<void>((r) => { release = r; });
+  const id = await runner.start(sessionId);
+  expect(runner.view(id)).toMatchObject({ total: N, fetched: 0, read: 0, status: 'running', decisions: [], queue: [] });
+  expect(ofType(id, 'snapshot')[0].view).toMatchObject({ total: N, fetched: 0 });
+  expect(repo.loadBatch(id).emails).toEqual([]);
+  expect(repo.loadBatch(id).candidates).toHaveLength(N);
+  expect(mail.getThreadCalls.length).toBeGreaterThan(0); // already asked, none answered
+  expect(jev.calls).toBe(0);
+  release(); await settle();
+  expect(runner.view(id)).toMatchObject({ total: N, fetched: N, read: N });
+  expect(repo.loadBatch(id).emails.map((e) => e.n)).toEqual(Array.from({ length: N }, (_, i) => i + 1));
+  const fetchedSeq = ofType(id, 'progress').map((p) => p.fetched);
+  expect(fetchedSeq).toContain(1);
+  expect(fetchedSeq.at(-1)).toBe(N);
+  expect(mirror(id)).toEqual(runner.view(id));
+});
+
+test('emails keep their candidate position however the fetches arrive', async () => {
+  const id = await runner.start(sessionId); await settle();
+  const cands = repo.loadBatch(id).candidates;
+  const nOf = new Map(repo.loadBatch(id).emails.map((e) => [e.email.threadId, e.n]));
+  for (const c of cands) expect(nOf.get(c.threadId)).toBe(c.n);
+});
+
+test('at most 8 full fetches are in flight at once', async () => {
+  mail.slowGetThread = true;
+  const id = await runner.start(sessionId); await settle();
+  expect(mail.maxGetThreadInFlight).toBe(8);
+  expect(mail.getThreadCalls).toHaveLength(N);
+  expect(runner.view(id)).toMatchObject({ read: N, fetched: N });
+  expect(mirror(id)).toEqual(runner.view(id));
+});
+
+test('an excluded thread with the same latest message is never fetched in full', async () => {
+  repo.saveSettings({ batchSize: 10 });
+  const a = await runner.start(sessionId); await settle();
+  const inA = new Set(repo.loadBatch(a).emails.map((e) => e.email.threadId));
+  expect(inA.size).toBe(10);
+  mail.getThreadCalls = [];
+  const b = await runner.start(sessionId); await settle();
+  expect(mail.getThreadCalls).toHaveLength(10);
+  expect(mail.getThreadCalls.some((t) => inA.has(t))).toBe(false);
+  expect(new Set(mail.getThreadCalls)).toEqual(new Set(repo.loadBatch(b).emails.map((e) => e.email.threadId)));
+});
+
+test('a batch started while another is still fetching never takes its candidates', async () => {
+  repo.saveSettings({ batchSize: 10 });
+  let release!: () => void;
+  mail.getThreadGate = new Promise<void>((r) => { release = r; });
+  const a = await runner.start(sessionId);
+  const b = await runner.start(repo.createSession().id);
+  const ta = new Set(repo.loadBatch(a).candidates.map((c) => c.threadId));
+  expect(repo.loadBatch(b).candidates).toHaveLength(10);
+  expect(repo.loadBatch(b).candidates.some((c) => ta.has(c.threadId))).toBe(false);
+  release(); await settle();
+});
+
+test('a thread gone before its full fetch is skipped, a fetch error fails it, and the batch finishes', async () => {
+  mail.gone.add('t5'); mail.getThreadFails.add('t6');
+  const id = await runner.start(sessionId); await settle();
+  for (let i = 0; runner.view(id).current && i < 100; i++) runner.resolve(id, runner.view(id).current!.threadId, 'keep');
+  const v = runner.view(id);
+  expect(v).toMatchObject({ status: 'reviewing', read: N, fetched: N, total: N });
+  const nOf = new Map(repo.loadBatch(id).candidates.map((c) => [c.threadId, c.n]));
+  expect(v.decisions.find((d) => d.threadId === 't5')).toMatchObject({ status: 'skipped', note: 'changed in Gmail', n: nOf.get('t5') });
+  expect(v.decisions.find((d) => d.threadId === 't6')).toMatchObject({ status: 'failed', dest: 'keep', who: 'jev', n: nOf.get('t6') });
+  expect(v.decisions.find((d) => d.threadId === 't6')!.note).toContain('gmail 500');
+  expect(ofType(id, 'error').filter((e) => e.message.includes('gmail 500')).length).toBe(1);
+  expect(jev.calls).toBe(N - 2);
+  expect(mirror(id)).toEqual(v);
+});
+
+test('a listCandidates failure rejects start and leaves no batch', async () => {
+  mail.listFails = true;
+  await expect(runner.start(sessionId)).rejects.toThrow('gmail down');
+  expect(repo.unfinishedBatch()).toBeUndefined();
+  expect(events).toEqual([]);
+});
+
+test('pause holds new fetches too; continue fetches the rest', async () => {
+  mail.slowGetThread = true;
+  const id = await runner.start(sessionId);
+  runner.pause(id); await settle();
+  expect(mail.getThreadCalls.length).toBe(8); // the ones already in flight
+  expect(runner.view(id).fetched).toBe(8);
+  runner.continue(id); await settle();
+  expect(runner.view(id)).toMatchObject({ fetched: N, read: N });
+  expect(mirror(id)).toEqual(runner.view(id));
+});
+
+test('a crash mid-fetch keeps saved emails; resume fetches the missing candidates and every one is decided', async () => {
+  mail.fetchBudget = 5; // the 6th getThread on never answers: the process "dies" mid-fetch
+  const id = await runner.start(sessionId);
+  await ticks();
+  const stored = repo.loadBatch(id);
+  expect(stored.emails).toHaveLength(5);
+  expect(stored.total).toBe(N);
+
+  mail.fetchBudget = Infinity;
+  events = [];
+  runner = makeRunner();
+  await runner.resume(id);
+  expect(runner.view(id)).toMatchObject({ total: N, fetched: 5 });
+  await settle();
+  for (let i = 0; runner.view(id).current && i < 100; i++) runner.resolve(id, runner.view(id).current!.threadId, 'keep');
+  const v = runner.view(id);
+  expect(v).toMatchObject({ status: 'reviewing', total: N, fetched: N, read: N });
+  const cands = repo.loadBatch(id).candidates;
+  expect(v.decisions.map((d) => d.threadId).sort()).toEqual(cands.map((c) => c.threadId).sort());
+  const nOf = new Map(repo.loadBatch(id).emails.map((e) => [e.email.threadId, e.n]));
+  for (const c of cands) expect(nOf.get(c.threadId)).toBe(c.n);
+  expect(mirror(id)).toEqual(v);
+});
+
+test('discarding while a fetch is in flight writes no email or decision for that thread afterwards', async () => {
+  let release!: () => void;
+  mail.getThreadGate = new Promise<void>((r) => { release = r; });
+  const id = await runner.start(sessionId);
+  repo.setBatchStatus(id, 'discarded');
+  runner.refresh(id);
+  release(); await settle();
+  expect(repo.loadBatch(id).emails).toEqual([]);
+  expect(repo.loadBatch(id).decisions).toEqual([]);
+  expect(jev.calls).toBe(0);
 });

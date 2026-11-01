@@ -16,7 +16,7 @@ export type Route =
   | { name: 'session'; batchId: string }
   | { name: 'board'; batchId: string; readOnly: boolean };
 
-const complete = (s: SetupStatus) => s.typesafe && s.anthropic && s.google && s.gmailConnected && s.foldersChosen;
+const complete = (s: SetupStatus) => s.typesafe && s.google && s.gmailConnected && s.foldersChosen;
 
 /** Reads `?auth=error` once, then clears it so a reload doesn't show the error again. */
 function takeAuthError(): boolean {

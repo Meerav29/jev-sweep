@@ -11,7 +11,7 @@ const dec = (threadId: string, dest: Decision['dest'], extra: Partial<Decision> 
   status: 'proposed', ...extra,
 });
 const view = (extra: Partial<BatchView> = {}): BatchView => ({
-  sessionId: 's', batchId: 'b', batchNo: 1, total: 10, read: 0, status: 'running', paused: false, dryRun: false,
+  sessionId: 's', batchId: 'b', batchNo: 1, total: 10, read: 0, fetched: 10, status: 'running', paused: false, dryRun: false,
   decisions: [], queue: [], current: null, ...extra,
 });
 
@@ -64,8 +64,8 @@ test('card_text patches the current card only when the thread matches', () => {
 });
 
 test('progress and status patch their fields', () => {
-  const v = reduceBatch(view(), { type: 'progress', read: 3, total: 10, paused: true })!;
-  expect(v).toMatchObject({ read: 3, total: 10, paused: true });
+  const v = reduceBatch(view({ fetched: 2 }), { type: 'progress', read: 3, fetched: 7, total: 10, paused: true })!;
+  expect(v).toMatchObject({ read: 3, fetched: 7, total: 10, paused: true });
   expect(reduceBatch(v, { type: 'status', status: 'reviewing' })!.status).toBe('reviewing');
 });
 

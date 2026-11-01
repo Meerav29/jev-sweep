@@ -9,7 +9,7 @@ const now = new Date('2026-10-31T12:00:00Z');
 const raw: unknown = JSON.parse(readFileSync('fixtures/fake-inbox.json', 'utf8'));
 const items = loadFakeInbox(raw, now);
 
-test('fixture has about 40 items covering every branch', () => {
+test('fixture has about 50 items covering every branch', () => {
   expect(items.length).toBeGreaterThanOrEqual(38);
   expect(new Set(items.map(i => i.expect))).toEqual(new Set(['auto_archive', 'proposed', 'queue_filing', 'queue_important']));
 });
@@ -17,7 +17,7 @@ test('thread ids are unique and dates fall in the last 60 days', () => {
   expect(new Set(items.map(i => i.threadId)).size).toBe(items.length);
   for (const i of items) expect(ageDays(i.date, now)).toBeLessThanOrEqual(60);
 });
-test('every item has all 11 nouls and decides as expected', () => {
+test('every item has every noul and decides as expected', () => {
   for (const item of items) {
     for (const id of NOUL_IDS) expect(typeof item.jev.nouls[id], `${item.threadId} ${id}`).toBe('number');
     const o = decide(item.jev, ageDays(item.date, now), DEFAULT_SETTINGS.thresholds);

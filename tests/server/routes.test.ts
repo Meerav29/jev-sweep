@@ -13,6 +13,7 @@ import { FakeJev } from '../../server/jev/client';
 import type { JevClient } from '../../server/jev/client';
 import { FakeWriter } from '../../server/claude/cardText';
 import { loadConfig } from '../../server/config';
+import { parseDest } from '../../server/routes';
 import { oauthRoutes } from '../../server/mail/oauth';
 import type { BatchView, Email, JevAnswers, QueueItem, SessionEvent } from '../../shared/types';
 
@@ -171,7 +172,7 @@ function mirror(events: SessionEvent[]): BatchView {
         v.current = e.card;
         if (e.card) v.queue = v.queue.filter((q) => q.threadId !== e.card!.threadId);
         break;
-      case 'progress': v.read = e.read; v.total = e.total; v.paused = e.paused; break;
+      case 'progress': v.read = e.read; v.fetched = e.fetched; v.total = e.total; v.paused = e.paused; break;
       case 'status': v.status = e.status; break;
       default: break;
     }
@@ -342,6 +343,18 @@ describe('real mode', () => {
     expect(((await (await call('/api/setup')).json()) as { foldersChosen: boolean }).foldersChosen).toBe(true);
   });
 
+  test('without an Anthropic key the runtime still builds (key is optional); without TypeSafe it does not', async () => {
+    const { tokenPath } = realSetup({ TYPESAFE_API_KEY: 'ts-1', GOOGLE_CLIENT_ID: 'g', GOOGLE_CLIENT_SECRET: 's' });
+    expect(services.runtime()).toBeNull(); // no Gmail token yet
+    mkdirSync(join(tokenPath, '..'), { recursive: true });
+    writeFileSync(tokenPath, JSON.stringify({ access_token: 'a', refresh_token: 'r' }));
+    expect(services.setupStatus().anthropic).toBe(false);
+    expect(services.runtime()).not.toBeNull();
+    const t2 = realSetup({ GOOGLE_CLIENT_ID: 'g', GOOGLE_CLIENT_SECRET: 's' });
+    writeFileSync(t2.tokenPath, JSON.stringify({ access_token: 'a', refresh_token: 'r' }));
+    expect(services.runtime()).toBeNull();
+  });
+
   test('batch routes are 503 until configured (a known batch, not a 404)', async () => {
     realSetup({});
     const sessionId = repo.createSession().id;
@@ -368,7 +381,7 @@ describe('real mode', () => {
     const res = await call(`/api/batches/${id}`);
     expect(res.status).toBe(200);
     const v = (await res.json()) as BatchView;
-    expect(v).toMatchObject({ batchId: id, sessionId, status: 'applied', total: 1, read: 1, queue: [], current: null });
+    expect(v).toMatchObject({ batchId: id, sessionId, status: 'applied', total: 1, read: 1, fetched: 1, queue: [], current: null });
     expect(v.decisions).toHaveLength(1);
   });
 
@@ -417,6 +430,15 @@ describe('validation', () => {
     expect((await resolve({ threadId: t, dest: 'label:Receipts', star: true })).status).toBe(200);
   });
 
+  test('"Archive" in any case or padding means the archive destination, not a label', async () => {
+    const t = runner().view(batchId).current!.threadId;
+    expect(parseDest('label:Archive')).toBe('archive');
+    expect(parseDest('label:  aRCHIVE ')).toBe('archive');
+    expect(parseDest('label:Archives')).toBe('label:Archives');
+    expect((await resolve({ threadId: t, dest: 'label:archive' })).status).toBe(200);
+    expect(repo.loadBatch(batchId).decisions.find((d) => d.threadId === t)?.dest).toBe('archive');
+  });
+
   test('system label names are refused as destinations and folders', async () => {
     const t = runner().view(batchId).current!.threadId;
     for (const name of ['INBOX', 'spam', 'Trash', 'unread', 'STARRED', 'Important', 'sent', 'DRAFT', 'chat', 'CATEGORY_PROMOTIONS', 'category_social']) {
@@ -437,16 +459,17 @@ describe('validation', () => {
       { folders: [{ name: 'Receipts', enabled: true, description: 3 }] },
       { thresholds: { guardNoul: 1.5 } }, { thresholds: { proposeConfidence: -0.1 } }, { thresholds: { importantQueue: 'x' } },
       { thresholds: { recentDays: 0 } }, { thresholds: { recentDays: 1.5 } }, { thresholds: { bogus: 1 } },
+      { thresholds: { staleDays: 0 } }, { thresholds: { staleDays: 2.5 } }, { thresholds: { staleConfidence: 1.2 } }, { thresholds: { junkMaxKeep: -1 } },
       { unknownField: 1 }, [], null,
     ];
     for (const b of bad) expect((await send('PUT', '/api/settings', b)).status, JSON.stringify(b)).toBe(400);
     const ok = await send('PUT', '/api/settings', {
       batchSize: 30, query: 'in:inbox', folders: [{ name: 'Receipts', enabled: true, description: 'shop mail' }],
-      thresholds: { guardNoul: 0, autoArchiveConfidence: 1, recentDays: 3 }, dryRun: true,
+      thresholds: { guardNoul: 0, autoArchiveConfidence: 1, recentDays: 3, staleDays: 30, junkMaxKeep: 0.2 }, dryRun: true,
     });
     expect(ok.status).toBe(200);
     expect(repo.getSettings()).toMatchObject({ batchSize: 30, query: 'in:inbox', dryRun: true,
-      thresholds: { guardNoul: 0, autoArchiveConfidence: 1, recentDays: 3, importantQueue: 0.7 } });
+      thresholds: { guardNoul: 0, autoArchiveConfidence: 1, recentDays: 3, importantQueue: 0.7, staleDays: 30, junkMaxKeep: 0.2, staleConfidence: 0.85 } });
   });
 });
 
@@ -802,7 +825,7 @@ describe('fix round 1', () => {
 
   test('sessions with no batch (a failed start) are not listed', async () => {
     class BrokenMail extends FakeMail {
-      async fetchBatch(): Promise<Email[]> { throw new Error('gmail down'); }
+      async listCandidates(): Promise<{ threadId: string; latestMessageId: string }[]> { throw new Error('gmail down'); }
     }
     build(staticServices({
       repo, hub, mail: new BrokenMail(fixture), jev: new FakeJev(answers), writer: new FakeWriter(), concurrency: 1,

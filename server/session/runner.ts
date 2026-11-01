@@ -14,6 +14,12 @@ import { ReviewQueue } from './queue';
 
 type QueueOutcome = Extract<Outcome, { kind: 'queue' }>;
 
+/** Full thread fetches (getThread) in flight per batch while it streams in from Gmail. */
+export const FETCH_CONCURRENCY = 8;
+
+/** Subject shown for a thread that never made it out of Gmail (gone, or its fetch failed). */
+const UNFETCHED_SUBJECT = '(not fetched from Gmail)';
+
 export interface RunnerDeps {
   mail: MailProvider;
   jev: JevClient;
@@ -37,6 +43,15 @@ interface BatchState {
   /** Dry run as of the batch's start; sticky across resumes (a live setting can still switch it on). */
   dryRun: boolean;
   settings: Settings;
+  /** Every thread picked for the batch, with its position. Emails arrive for them as their full fetch finishes. */
+  candidates: Map<string, number>;
+  /** Candidates still to fetch in full, in batch order; `fetchCursor` is the next one. */
+  toFetch: string[];
+  fetchCursor: number;
+  /** Full fetches running now. */
+  fetching: number;
+  /** Candidates whose full fetch has finished (fetched, gone or failed). */
+  fetched: number;
   emails: Map<string, { n: number; email: Email }>;
   /** Threads whose body still has to be re-fetched with getThread (resumed batches only). */
   needsBody: Set<string>;
@@ -90,7 +105,7 @@ function restoreQueue(items: QueueItem[]): ReviewQueue {
 const errMessage = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /**
- * The batch loop (spec 6.2): fetch, ask Jev about each email in a small pool, act on each policy outcome,
+ * The batch loop (spec 6.2): stream the emails in from Gmail, ask Jev about each email in a small pool, act on each policy outcome,
  * and keep a review queue the human works through while Jev carries on.
  * Every state change is persisted and emitted, so view() equals what a client builds from snapshot + events.
  */
@@ -104,23 +119,24 @@ export class BatchRunner {
     this.now = deps.now ?? (() => new Date());
   }
 
+  /**
+   * Lists the batch's threads (message ids only), creates the batch and returns its id. The full fetches and
+   * Jev run on in the background: each email joins the Jev pool the moment Gmail returns it.
+   */
   async start(sessionId: string): Promise<string> {
     const { repo, mail } = this.deps;
     const settings = repo.getSettings();
-    const fetched = await mail.fetchBatch(settings.query, settings.batchSize, repo.excludedThreads());
-    const { id, batchNo } = repo.createBatch(sessionId, fetched.length, settings.dryRun);
-    const s = this.newState(id, sessionId, batchNo, fetched.length, settings);
-    fetched.forEach((email, i) => {
-      const n = i + 1;
-      repo.saveEmail(id, n, email);
-      s.emails.set(email.threadId, { n, email });
-      s.pending.push(email.threadId);
+    const candidates = await mail.listCandidates(settings.query, settings.batchSize, repo.excludedThreads());
+    const { id, batchNo } = repo.createBatch(sessionId, candidates.length, settings.dryRun, candidates);
+    const s = this.newState(id, sessionId, batchNo, candidates.length, settings);
+    candidates.forEach((c, i) => {
+      s.candidates.set(c.threadId, i + 1);
+      s.toFetch.push(c.threadId);
     });
-    repo.setBatchStatus(id, 'running');
     this.batches.set(id, s);
     this.emit(s, { type: 'snapshot', view: this.view(id) });
-    this.spawn(s);
-    this.checkDone(s);
+    this.spawnFetch(s);
+    this.checkDone(s); // nothing to fetch: straight to applied
     return id;
   }
 
@@ -139,6 +155,12 @@ export class BatchRunner {
     for (const [t, a] of Object.entries(lb.jev)) s.jev.set(t, a);
     for (const [t, x] of Object.entries(lb.text)) s.text.set(t, x);
     for (const d of lb.decisions) s.decisions.set(d.threadId, d);
+    // Batches from before the candidate list was stored fetched everything up front: their emails are the list.
+    const candidates = lb.candidates.length > 0 ? lb.candidates : lb.emails.map(({ n, email }) => ({ n, threadId: email.threadId }));
+    for (const c of candidates) s.candidates.set(c.threadId, c.n);
+    // A crash mid-fetch: candidates with neither an email nor a decision are fetched again.
+    for (const c of candidates) if (!s.emails.has(c.threadId) && !s.decisions.has(c.threadId)) s.toFetch.push(c.threadId);
+    s.fetched = s.candidates.size - s.toFetch.length;
     s.queue = restoreQueue(lb.queue.filter((q) => s.emails.has(q.threadId)));
 
     // Queued and current cards need their body again (it is never stored). Gone or changed in Gmail → skipped.
@@ -179,9 +201,10 @@ export class BatchRunner {
       s.pending.push(t);
       s.needsBody.add(t);
     }
-    // Done = decided, queued or current. Threads back in the pool (answered or not) become done only once processed.
-    const pending = new Set(s.pending);
-    for (const t of s.emails.keys()) if (!pending.has(t)) s.done.add(t);
+    // Done = decided, queued or current. Threads back in the pool (answered or not), or still to fetch,
+    // become done only once processed.
+    const notDone = new Set([...s.pending, ...s.toFetch]);
+    for (const t of new Set([...s.candidates.keys(), ...s.emails.keys()])) if (!notDone.has(t)) s.done.add(t);
 
     this.batches.set(batchId, s);
     if (s.status === 'running' || s.status === 'reviewing') this.persistQueue(s);
@@ -190,6 +213,7 @@ export class BatchRunner {
     if (s.status === 'running') {
       this.advance(s);
       this.spawn(s);
+      this.spawnFetch(s);
       this.checkDone(s);
     }
   }
@@ -207,6 +231,7 @@ export class BatchRunner {
     s.paused = false;
     this.emitProgress(s);
     this.spawn(s);
+    this.spawnFetch(s);
   }
 
   resolve(batchId: string, threadId: string, dest: Dest, opts?: { star?: boolean }): void {
@@ -290,14 +315,14 @@ export class BatchRunner {
     const s = this.get(batchId);
     if (!s) throw new Error(`Unknown batch ${batchId}`);
     return structuredClone({
-      sessionId: s.sessionId, batchId: s.batchId, batchNo: s.batchNo, total: s.total, read: s.done.size,
+      sessionId: s.sessionId, batchId: s.batchId, batchNo: s.batchNo, total: s.total, read: s.done.size, fetched: s.fetched,
       status: s.status, paused: s.paused, dryRun: s.dryRun,
       decisions: [...s.decisions.values()].sort((a, b) => a.n - b.n),
       queue: s.queue.list(), current: s.current,
     });
   }
 
-  /** Resolves once no Jev call or card-text write is in flight for the batch (or for every batch). */
+  /** Resolves once no Gmail fetch, Jev call or card-text write is in flight for the batch (or for every batch). */
   async idle(batchId?: string): Promise<void> {
     const states = batchId ? [this.get(batchId)].filter((x): x is BatchState => !!x) : [...this.batches.values()];
     for (;;) {
@@ -307,7 +332,45 @@ export class BatchRunner {
     }
   }
 
-  // ---- pool ----
+  // ---- fetch pool ----
+
+  /** Pause holds new fetches as well as new Jev calls; the ones in flight finish. */
+  private spawnFetch(s: BatchState): void {
+    while (s.fetching < FETCH_CONCURRENCY && !s.paused && s.status === 'running' && s.fetchCursor < s.toFetch.length) {
+      const t = s.toFetch[s.fetchCursor++];
+      s.fetching++;
+      this.track(s, this.fetchOne(s, t).finally(() => {
+        s.fetching--;
+        this.spawnFetch(s);
+      }));
+    }
+  }
+
+  /** One full fetch: the email is saved and joins the Jev pool. Gone in Gmail: skipped. A throw: failed. */
+  private async fetchOne(s: BatchState, t: string): Promise<void> {
+    let counted = false;
+    try {
+      const email = await this.deps.mail.getThread(t);
+      if (s.status !== 'running') return; // discarded or applied while the fetch was in flight: write nothing
+      counted = true;
+      s.fetched++;
+      if (!email) this.skip(s, t, true);
+      else {
+        const n = s.candidates.get(t)!;
+        this.deps.repo.saveEmail(s.batchId, n, email);
+        s.emails.set(t, { n, email });
+        s.pending.push(t);
+      }
+    } catch (e) {
+      if (!counted) s.fetched++;
+      this.fail(s, t, e, true);
+    }
+    this.emitProgress(s);
+    this.spawn(s);
+    this.checkDone(s);
+  }
+
+  // ---- jev pool ----
 
   private spawn(s: BatchState): void {
     while (s.workers < this.deps.concurrency && !s.paused && s.status === 'running' && s.cursor < s.pending.length) {
@@ -453,9 +516,17 @@ export class BatchRunner {
 
   // ---- helpers ----
 
+  /** Position, subject and sender for a decision: from the email, or placeholders if it was never fetched. */
+  private meta(s: BatchState, t: string): { n: number; subject: string; fromName: string } | undefined {
+    const entry = s.emails.get(t);
+    if (entry) return { n: entry.n, subject: entry.email.subject, fromName: entry.email.fromName };
+    const n = s.candidates.get(t);
+    return n === undefined ? undefined : { n, subject: UNFETCHED_SUBJECT, fromName: '' };
+  }
+
   private skip(s: BatchState, t: string, emit: boolean): void {
-    const { n, email } = s.emails.get(t)!;
-    const d: Decision = { threadId: t, n, subject: email.subject, fromName: email.fromName, dest: 'keep', who: 'jev',
+    const { n, subject, fromName } = this.meta(s, t)!;
+    const d: Decision = { threadId: t, n, subject, fromName, dest: 'keep', who: 'jev',
       important: false, star: false, opened: false, status: 'skipped', note: 'changed in Gmail' };
     s.done.add(t);
     if (emit) this.setDecision(s, d);
@@ -464,12 +535,11 @@ export class BatchRunner {
 
   /** An unexpected throw for one thread: fail that thread so the batch can still finish (never stuck in running). */
   private fail(s: BatchState, t: string, e: unknown, emit: boolean): string {
-    const entry = s.emails.get(t);
-    const subject = entry?.email.subject ?? t;
-    const message = `Processing "${subject}" failed: ${errMessage(e)}`;
+    const m = this.meta(s, t);
+    const message = `Processing "${s.emails.get(t)?.email.subject ?? t}" failed: ${errMessage(e)}`;
     s.done.add(t);
-    if (entry) {
-      const d: Decision = { threadId: t, n: entry.n, subject, fromName: entry.email.fromName, dest: 'keep', who: 'jev',
+    if (m) {
+      const d: Decision = { threadId: t, n: m.n, subject: m.subject, fromName: m.fromName, dest: 'keep', who: 'jev',
         important: false, star: false, opened: false, status: 'failed', note: errMessage(e) };
       s.decisions.set(t, d);
       try { this.deps.repo.saveDecision(s.batchId, d); } catch { /* the error event below still reports it */ }
@@ -512,7 +582,7 @@ export class BatchRunner {
   }
 
   private emitProgress(s: BatchState): void {
-    this.emit(s, { type: 'progress', read: s.done.size, total: s.total, paused: s.paused });
+    this.emit(s, { type: 'progress', read: s.done.size, fetched: s.fetched, total: s.total, paused: s.paused });
   }
 
   private emit(s: BatchState, e: SessionEvent): void {
@@ -537,6 +607,7 @@ export class BatchRunner {
   private newState(batchId: string, sessionId: string, batchNo: number, total: number, settings: Settings): BatchState {
     return {
       batchId, sessionId, batchNo, total, status: 'running', paused: false, dryRun: settings.dryRun, settings,
+      candidates: new Map(), toFetch: [], fetchCursor: 0, fetching: 0, fetched: 0,
       emails: new Map(), needsBody: new Set(), jev: new Map(), outcomes: new Map(), text: new Map(),
       decisions: new Map(), done: new Set(), pending: [], cursor: 0, queue: new ReviewQueue(),
       current: null, currentItem: null, workers: 0, inFlight: new Set(),

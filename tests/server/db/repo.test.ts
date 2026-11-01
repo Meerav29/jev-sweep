@@ -75,6 +75,25 @@ describe('Repo', () => {
     expect(ex.has('u')).toBe(false);
   });
 
+  it('stores a batch candidate list in order, idempotently', () => {
+    const { id } = repo.createBatch(sid, 2);
+    const list = [{ threadId: 'b', latestMessageId: 'mb' }, { threadId: 'a', latestMessageId: 'ma' }];
+    repo.saveCandidates(id, list);
+    repo.saveCandidates(id, list);
+    expect(repo.loadBatch(id).candidates).toEqual([{ n: 1, ...list[0] }, { n: 2, ...list[1] }]);
+    expect(repo.loadBatch(repo.createBatch(sid, 0).id).candidates).toEqual([]);
+  });
+
+  it('excludes candidates of an open batch that are not fetched yet', () => {
+    const a = repo.createBatch(sid, 2).id;
+    repo.saveCandidates(a, [{ threadId: 'f', latestMessageId: 'mf-old' }, { threadId: 'w', latestMessageId: 'mw' }]);
+    repo.saveEmail(a, 1, { ...email, threadId: 'f', latestMessageId: 'mf-new' });
+    expect(repo.excludedThreads().get('w')).toBe('mw');
+    expect(repo.excludedThreads().get('f')).toBe('mf-new'); // the fetched email wins
+    repo.setBatchStatus(a, 'applied');
+    expect(repo.excludedThreads().has('w')).toBe(false);
+  });
+
   it('uses the most recent batch latestMessageId', () => {
     const a = repo.createBatch(sid, 1).id;
     repo.saveEmail(a, 1, { ...email, latestMessageId: 'old' });

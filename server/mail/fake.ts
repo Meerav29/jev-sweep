@@ -1,5 +1,5 @@
 import type { Email, JevAnswers } from '../../shared/types';
-import type { MailProvider } from './provider';
+import type { Candidate, MailProvider } from './provider';
 
 export type FakeEmail = Email & { jev: JevAnswers; summary?: string[] };
 export type FakeExpect = 'auto_archive' | 'proposed' | 'queue_filing' | 'queue_important';
@@ -37,12 +37,12 @@ export class FakeMail implements MailProvider {
     return [...this.labelNames].sort();
   }
 
-  async fetchBatch(_query: string, n: number, excluded: Map<string, string>): Promise<Email[]> {
+  async listCandidates(_query: string, n: number, excluded: Map<string, string>): Promise<Candidate[]> {
     return [...this.threads.values()]
       .filter(t => t.labels.includes('INBOX') && excluded.get(t.threadId) !== t.latestMessageId)
       .sort((a, b) => a.date.localeCompare(b.date))
       .slice(0, n)
-      .map(t => structuredClone(t));
+      .map(t => ({ threadId: t.threadId, latestMessageId: t.latestMessageId }));
   }
 
   async getThread(threadId: string): Promise<Email | null> {

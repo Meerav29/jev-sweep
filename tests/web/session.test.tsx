@@ -40,7 +40,7 @@ const card: CardSpec = {
   options: [{ dest: 'label:Travel', label: 'Travel', p: 0.6 }], suggestKeep: false, gmailUrl: 'u',
 };
 const view = (o: Partial<BatchView> = {}): BatchView => ({
-  sessionId: 's', batchId: 'b1', batchNo: 2, total: 10, read: 5, status: 'running', paused: false, dryRun: false,
+  sessionId: 's', batchId: 'b1', batchNo: 2, total: 10, read: 5, fetched: 10, status: 'running', paused: false, dryRun: false,
   decisions: [dec('a', 1, 'archive'), dec('f', 2, 'label:Travel'), dec('y', 3, 'keep', { who: 'you', important: true })],
   queue: [{ threadId: 'q', n: 5, subject: 'Lease renewal', important: true }],
   current: card, ...o,
@@ -59,6 +59,18 @@ test('the header shows progress, counts and a labelled ring', async () => {
   expect(screen.getByRole('img', { name: '3 of 10 sorted: 1 archived, 1 filed, 1 kept' })).toBeTruthy();
   const counts = screen.getByTestId('counts');
   expect(counts.textContent).toBe('Archived 1Filed 1Kept 1Asked you 1');
+  await waitFor(() => expect(calls.some((c) => c.url === '/api/settings')).toBe(true));
+});
+
+test('while Gmail is still fetching, the header says how far it has got', async () => {
+  mount();
+  FakeES.last!.emit({ type: 'snapshot', view: view({ fetched: 3 }) });
+  expect(screen.getByText('Fetching from Gmail… 3 of 10')).toBeTruthy();
+  FakeES.last!.emit({ type: 'progress', read: 5, fetched: 9, total: 10, paused: false });
+  expect(screen.getByText('Fetching from Gmail… 9 of 10')).toBeTruthy();
+  FakeES.last!.emit({ type: 'progress', read: 5, fetched: 10, total: 10, paused: false });
+  expect(screen.queryByText(/Fetching from Gmail/)).toBeNull();
+  expect(screen.getByText('3 of 10 sorted · Jev has read 5')).toBeTruthy();
   await waitFor(() => expect(calls.some((c) => c.url === '/api/settings')).toBe(true));
 });
 
@@ -121,7 +133,7 @@ test('Pause and Resume call the server', async () => {
   FakeES.last!.emit({ type: 'snapshot', view: view() });
   fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
   await waitFor(() => expect(calls.some((c) => c.url === '/api/batches/b1/pause')).toBe(true));
-  FakeES.last!.emit({ type: 'progress', read: 5, total: 10, paused: true });
+  FakeES.last!.emit({ type: 'progress', read: 5, fetched: 10, total: 10, paused: true });
   fireEvent.click(screen.getByRole('button', { name: 'Resume' }));
   await waitFor(() => expect(calls.some((c) => c.url === '/api/batches/b1/continue')).toBe(true));
 });

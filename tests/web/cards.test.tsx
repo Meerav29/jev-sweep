@@ -133,6 +133,17 @@ test('typing a new name in the combobox offers Create, which yields label:{typed
   expect(onChoose).toHaveBeenCalledWith('label:Taxes 2026', undefined);
 });
 
+test('typing "archive" offers Archive (not Create) and chooses the archive destination', () => {
+  const onChoose = vi.fn();
+  render(<FilingCard card={filing()} folders={FOLDERS} onChoose={onChoose} />);
+  const box = screen.getByRole('combobox', { name: 'Other folder' });
+  fireEvent.change(box, { target: { value: ' ARCHIVE ' } });
+  expect(screen.queryByRole('option', { name: /Create/ })).toBeNull();
+  expect(screen.queryByText('That name is reserved by Gmail')).toBeNull();
+  fireEvent.click(screen.getByRole('option', { name: 'Archive' }));
+  expect(onChoose).toHaveBeenCalledWith('archive', undefined);
+});
+
 test('the combobox lists existing labels, and picking one files there', () => {
   const onChoose = vi.fn();
   render(<FilingCard card={filing()} folders={FOLDERS} onChoose={onChoose} />);
