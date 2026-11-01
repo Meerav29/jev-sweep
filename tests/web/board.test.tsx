@@ -336,6 +336,58 @@ test('dry run says so on the header and by the Apply button', async () => {
   await settle();
 });
 
+// ---- polish: empty batches, applied copy, Apply only while reviewing ----
+
+const EMPTY = 'Nothing left to sort. Every unread email matching your query has been handled.';
+
+test('an applied batch with no emails says so and offers only End session', async () => {
+  const { onHome } = mount();
+  FakeES.last!.emit({ type: 'snapshot', view: view({ status: 'applied', total: 0, read: 0, decisions: [] }) });
+  expect(screen.getByText(EMPTY)).toBeTruthy();
+  expect(screen.queryAllByTestId('board-col')).toHaveLength(0);
+  expect(screen.queryByRole('button', { name: /^Apply/ })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Next batch' })).toBeNull();
+  expect(screen.queryByText(/Drag a card/)).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'End session' }));
+  expect(onHome).toHaveBeenCalled();
+  await settle();
+});
+
+test('the session screen shows the same message for an empty applied batch', async () => {
+  const { Session } = await import('../../web/screens/Session');
+  render(<Session batchId="b1" onBack={() => {}} onReviewing={() => {}} />);
+  FakeES.last!.emit({ type: 'snapshot', view: view({ status: 'applied', total: 0, read: 0, decisions: [] }) });
+  expect(screen.getByText(EMPTY)).toBeTruthy();
+  await settle();
+});
+
+test('once applied, the sub-line says the moves were applied', async () => {
+  mount();
+  FakeES.last!.emit({ type: 'snapshot', view: view({ status: 'applied' }) });
+  expect(screen.getByText('These moves have been applied in Gmail.')).toBeTruthy();
+  expect(screen.queryByText(/Drag a card/)).toBeNull();
+  await settle();
+});
+
+test('once applied in dry run, the sub-line says nothing changed', async () => {
+  mount();
+  FakeES.last!.emit({ type: 'snapshot', view: view({ status: 'applied', dryRun: true }) });
+  expect(screen.getByText('Dry run: nothing was changed in Gmail.')).toBeTruthy();
+  expect(screen.queryByText(/Drag a card/)).toBeNull();
+  await settle();
+});
+
+test('Apply shows only while reviewing', async () => {
+  mount();
+  FakeES.last!.emit({ type: 'snapshot', view: view({ status: 'running' }) });
+  expect(screen.queryByRole('button', { name: /^Apply/ })).toBeNull();
+  FakeES.last!.emit({ type: 'status', status: 'applying' });
+  expect(screen.queryByRole('button', { name: /^Apply/ })).toBeNull();
+  FakeES.last!.emit({ type: 'status', status: 'reviewing' });
+  expect(screen.getByRole('button', { name: 'Apply 3 moves' })).toBeTruthy();
+  await settle();
+});
+
 // ---- resume (Home) ----
 
 test('Resume asks the server, then opens the Session screen for a running batch', async () => {

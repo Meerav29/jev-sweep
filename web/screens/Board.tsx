@@ -5,7 +5,7 @@ import { FolderCombo } from '../cards/parts';
 import { boardColumns } from '../components/LiveBoard';
 import { destLabel } from '../components/destLabel';
 import { useBatch } from '../useBatch';
-import { folderChoices } from './Session';
+import { NOTHING_LEFT, folderChoices } from './Session';
 
 interface Props {
   batchId: string;
@@ -182,7 +182,11 @@ export function Board({ batchId, readOnly, onHome, onSession }: Props) {
   const title = !view ? 'Batch'
     : readOnly ? (dateText ? `Batch ${view.batchNo} · ${dateText}` : `Batch ${view.batchNo}`)
     : `Batch ${view.batchNo} · where everything's going`;
-  const sub = `Drag a card to change where it goes. Nothing has moved in Gmail yet.${dryRun ? ` (${DRY_RUN_NOTE})` : ''}`;
+  const applied = view?.status === 'applied';
+  const empty = applied && view.total === 0;
+  const sub = applied
+    ? (dryRun ? 'Dry run: nothing was changed in Gmail.' : 'These moves have been applied in Gmail.')
+    : `Drag a card to change where it goes. Nothing has moved in Gmail yet.${dryRun ? ` (${DRY_RUN_NOTE})` : ''}`;
   const shownError = actionError ?? error;
 
   const renderChip = (d: Decision) => {
@@ -222,6 +226,19 @@ export function Board({ batchId, readOnly, onHome, onSession }: Props) {
       </button>
     );
   };
+
+  if (empty) {
+    return (
+      <main className="screen">
+        <div>
+          <h1>{`Batch ${view.batchNo}`}</h1>
+          <p className="sub">{NOTHING_LEFT}</p>
+        </div>
+        {shownError && <p className="err" role="alert">{shownError}</p>}
+        <button type="button" className="btn dark" onClick={onHome}>End session</button>
+      </main>
+    );
+  }
 
   return (
     <main className="bscreen">
@@ -286,6 +303,8 @@ export function Board({ batchId, readOnly, onHome, onSession }: Props) {
             </>
           ) : view.status === 'discarded' ? (
             <span className="hint">This batch was discarded.</span>
+          ) : view.status !== 'reviewing' ? (
+            view.status === 'applying' ? <span className="hint">Applying…</span> : null
           ) : confirmDiscard ? (
             <>
               <span className="hint">Discard this batch? Its proposed moves won't happen.</span>

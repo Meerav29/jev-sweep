@@ -231,8 +231,9 @@ export class Repo {
     const openStmt = this.db.prepare(
       `SELECT id FROM batches WHERE session_id = ? AND status IN ('running', 'reviewing', 'applying') ORDER BY rowid DESC LIMIT 1`);
 
+    // What a past-session row opens: the newest batch that had emails, else the newest at all (never a discarded one).
     const lastStmt = this.db.prepare(
-      `SELECT id FROM batches WHERE session_id = ? AND status != 'discarded' ORDER BY rowid DESC LIMIT 1`);
+      `SELECT id FROM batches WHERE session_id = ? AND status != 'discarded' ORDER BY (total > 0) DESC, rowid DESC LIMIT 1`);
 
     return sessions.map((s) => {
       const bt = batchStmt.get(s.id) as { c: number; t: number };

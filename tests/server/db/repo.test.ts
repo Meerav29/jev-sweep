@@ -172,6 +172,25 @@ describe('Repo', () => {
     expect(list[0].lastBatchId).toBeUndefined();
   });
 
+  it('lastBatchId skips empty batches, unless every batch is empty', () => {
+    const full = repo.createBatch(sid, 3).id;
+    repo.setBatchStatus(full, 'applied');
+    const empty = repo.createBatch(sid, 0).id;
+    repo.setBatchStatus(empty, 'applied');
+    const gone = repo.createBatch(sid, 5).id;
+    repo.setBatchStatus(gone, 'discarded');
+    expect(repo.listSessions().find((s) => s.id === sid)!.lastBatchId).toBe(full);
+
+    const s2 = repo.createSession().id;
+    const e1 = repo.createBatch(s2, 0).id;
+    repo.setBatchStatus(e1, 'applied');
+    const e2 = repo.createBatch(s2, 0).id;
+    repo.setBatchStatus(e2, 'applied');
+    const g2 = repo.createBatch(s2, 4).id;
+    repo.setBatchStatus(g2, 'discarded');
+    expect(repo.listSessions().find((s) => s.id === s2)!.lastBatchId).toBe(e2);
+  });
+
   it('settings merge defaults with stored values', () => {
     expect(repo.getSettings()).toEqual(DEFAULT_SETTINGS);
     const out = repo.saveSettings({ dryRun: true });

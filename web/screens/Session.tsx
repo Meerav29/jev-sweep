@@ -18,6 +18,9 @@ interface Props {
   onReviewing: (batchId: string) => void;
 }
 
+/** A batch that fetched nothing: the query has run dry. The board shows it too. */
+export const NOTHING_LEFT = 'Nothing left to sort. Every unread email matching your query has been handled.';
+
 /** Statuses the session screen has nothing left to do in. */
 const BOARD_STATUSES: BatchStatus[] = ['reviewing', 'applying', 'applied'];
 
@@ -114,6 +117,7 @@ export function Session({ batchId, onBack, onReviewing }: Props) {
 
   let stage: React.ReactNode;
   if (!view) stage = <div className="idle"><span className="dot" />Connecting…</div>;
+  else if (view.status === 'applied' && view.total === 0) stage = <div className="idle">{NOTHING_LEFT}</div>;
   else if (current) {
     stage = (
       <div key={current.threadId} ref={slotRef}

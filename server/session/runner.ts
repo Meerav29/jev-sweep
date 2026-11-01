@@ -444,9 +444,11 @@ export class BatchRunner {
 
   private checkDone(s: BatchState): void {
     if (s.status !== 'running' || s.done.size < s.total || s.current || s.queue.size > 0) return;
-    s.status = 'reviewing';
-    this.deps.repo.setBatchStatus(s.batchId, 'reviewing');
-    this.emit(s, { type: 'status', status: 'reviewing' });
+    // A batch that fetched nothing has nothing to review or apply: it is finished, not left open.
+    const next = s.total === 0 ? 'applied' : 'reviewing';
+    s.status = next;
+    this.deps.repo.setBatchStatus(s.batchId, next);
+    this.emit(s, { type: 'status', status: next });
   }
 
   // ---- helpers ----
