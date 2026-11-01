@@ -437,16 +437,17 @@ describe('validation', () => {
       { folders: [{ name: 'Receipts', enabled: true, description: 3 }] },
       { thresholds: { guardNoul: 1.5 } }, { thresholds: { proposeConfidence: -0.1 } }, { thresholds: { importantQueue: 'x' } },
       { thresholds: { recentDays: 0 } }, { thresholds: { recentDays: 1.5 } }, { thresholds: { bogus: 1 } },
+      { thresholds: { staleDays: 0 } }, { thresholds: { staleDays: 2.5 } }, { thresholds: { staleConfidence: 1.2 } }, { thresholds: { junkMaxKeep: -1 } },
       { unknownField: 1 }, [], null,
     ];
     for (const b of bad) expect((await send('PUT', '/api/settings', b)).status, JSON.stringify(b)).toBe(400);
     const ok = await send('PUT', '/api/settings', {
       batchSize: 30, query: 'in:inbox', folders: [{ name: 'Receipts', enabled: true, description: 'shop mail' }],
-      thresholds: { guardNoul: 0, autoArchiveConfidence: 1, recentDays: 3 }, dryRun: true,
+      thresholds: { guardNoul: 0, autoArchiveConfidence: 1, recentDays: 3, staleDays: 30, junkMaxKeep: 0.2 }, dryRun: true,
     });
     expect(ok.status).toBe(200);
     expect(repo.getSettings()).toMatchObject({ batchSize: 30, query: 'in:inbox', dryRun: true,
-      thresholds: { guardNoul: 0, autoArchiveConfidence: 1, recentDays: 3, importantQueue: 0.7 } });
+      thresholds: { guardNoul: 0, autoArchiveConfidence: 1, recentDays: 3, importantQueue: 0.7, staleDays: 30, junkMaxKeep: 0.2, staleConfidence: 0.85 } });
   });
 });
 

@@ -18,6 +18,11 @@ const ROUTINE_FINANCIAL_EXCEPTION_MAX = 0.3;
 const TRANSACTIONAL_MIN = 0.85;
 const TRANSACTIONAL_AUTOMATED_MIN = 0.8;
 
+// Policy v2 fixed bars (the tunable ones live in Thresholds).
+const STALE_AUTOMATED_MIN = 0.9;
+const STALE_NEEDS_REPLY_MAX = 0.3;
+const STALE_FINANCIAL_MAX = 0.5;
+
 /** True exactly where score.py decide() returns "archive". */
 export function triageSaysArchive(n: Record<NoulId, number>, ageDays: number, recentDays: number): boolean {
   if (n.financial_exception >= FINANCIAL_BLOCK || n.money_movement >= FINANCIAL_BLOCK) return false;
@@ -50,6 +55,15 @@ export function decide(a: JevAnswers, ageDays: number, t: Thresholds): Outcome {
   if (a.failed) return { kind: 'queue', card: 'filing', suggestKeep: false };
 
   const n = a.nouls;
+  if (
+    ageDays >= t.staleDays &&
+    n.stale >= t.staleConfidence &&
+    n.automated_sender >= STALE_AUTOMATED_MIN &&
+    n.needs_reply < STALE_NEEDS_REPLY_MAX &&
+    n.financial_exception < STALE_FINANCIAL_MAX &&
+    n.money_movement < STALE_FINANCIAL_MAX
+  ) return { kind: 'auto_archive' };
+
   if (n.important >= t.importantQueue) {
     return { kind: 'queue', card: 'important', suggestKeep: n.needs_reply >= t.needsReplyQueue };
   }
@@ -62,9 +76,17 @@ export function decide(a: JevAnswers, ageDays: number, t: Thresholds): Outcome {
     n.important >= t.guardNoul;
   const { choice, confidence } = a.destination;
 
+  const triageArchive = !guard && triageSaysArchive(n, ageDays, t.recentDays);
+
+  // Junk: triage says archive and Jev does not want it kept. Similar folders split the vote, so a weak
+  // pick means archive; a confident pick is proposed.
+  if (triageArchive && (a.destination.probabilities.keep ?? 0) <= t.junkMaxKeep) {
+    if (choice.startsWith('label:') && confidence >= t.proposeConfidence) return { kind: 'proposed', dest: choice };
+    return { kind: 'auto_archive' };
+  }
+
   if (
-    !guard &&
-    triageSaysArchive(n, ageDays, t.recentDays) &&
+    triageArchive &&
     choice === 'archive' &&
     confidence >= t.autoArchiveConfidence
   ) return { kind: 'auto_archive' };

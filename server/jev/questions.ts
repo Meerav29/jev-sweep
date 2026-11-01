@@ -17,16 +17,17 @@ export function buildState(email: Email, folders: Folder[], now: Date): Record<s
     subject: email.subject,
     date: email.date,
     age_days: ageDays(email.date, now),
+    today: now.toISOString().slice(0, 10),
     gmail_labels: email.labels,
     body: email.body.slice(0, BODY_LIMIT),
     folders: folders.filter(f => f.enabled).map(f => (f.description ? { name: f.name, description: f.description } : { name: f.name })),
   };
 }
 
-// important / needs_reply: spec section 6.3. The other nine are verbatim from inbox-triage/score.py.
+// important / needs_reply / stale: spec section 6.3 (important and stale are age-aware). The other eight are verbatim from inbox-triage/score.py.
 const NOUL_INSTRUCTIONS: Record<NoulId, string> = {
-  important: 'Does this email contain something this person needs to know or do (a deadline, an appointment, '
-    + 'a request from a real person, a bill due, a security or account problem, an offer or legal or medical or financial matter)?',
+  important: 'Does this email contain something this person needs to know or do **today** (a deadline, '
+    + 'appointment, bill, security problem, or request) given how old it is?',
   needs_reply: 'Is a real person waiting for a reply from this person?',
   bulk_marketing: "Is this a bulk promotional or marketing email (sales, discounts, "
     + "product announcements, 'we miss you', surveys/feedback requests, contests) "
@@ -57,6 +58,11 @@ const NOUL_INSTRUCTIONS: Record<NoulId, string> = {
     + 'or issue bot activity, usage notices, agent/routine run summaries from '
     + 'Vercel, GitHub, Supabase, Netlify, Cloudflare, Sentry, Linear, Claude agents '
     + 'and similar)?',
+  stale: "Given today's date and how old this email is, has the event, deadline, offer, alert, code, delivery or "
+    + 'announcement it is about already passed, so that it no longer matters? Examples: past maintenance or outages, '
+    + 'expired codes and sign-in alerts that were never acted on, ended sales and webinars, past appointments, '
+    + 'deliveries that already arrived, old onboarding or welcome mail. Mail that stays useful as a record '
+    + '(receipts, contracts, tax documents, statements) is not stale.',
 };
 
 export function buildQuestions(folders: Folder[]): { questions: Record<string, Question>; keyToDest: Record<string, Dest> } {

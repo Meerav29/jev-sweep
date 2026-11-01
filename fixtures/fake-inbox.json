@@ -32,7 +32,8 @@
         "financial_exception": 0.04,
         "money_movement": 0.04,
         "transactional": 0.04,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
     "expect": "auto_archive"
@@ -70,7 +71,8 @@
         "financial_exception": 0.04,
         "money_movement": 0.04,
         "transactional": 0.04,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
     "expect": "auto_archive"
@@ -108,7 +110,8 @@
         "financial_exception": 0.04,
         "money_movement": 0.04,
         "transactional": 0.04,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
     "expect": "auto_archive"
@@ -146,7 +149,8 @@
         "financial_exception": 0.04,
         "money_movement": 0.04,
         "transactional": 0.04,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
     "expect": "auto_archive"
@@ -184,7 +188,8 @@
         "financial_exception": 0.04,
         "money_movement": 0.04,
         "transactional": 0.04,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
     "expect": "auto_archive"
@@ -222,7 +227,8 @@
         "financial_exception": 0.04,
         "money_movement": 0.04,
         "transactional": 0.04,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
     "expect": "auto_archive"
@@ -260,7 +266,8 @@
         "financial_exception": 0.04,
         "money_movement": 0.04,
         "transactional": 0.04,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
     "expect": "auto_archive"
@@ -298,7 +305,8 @@
         "financial_exception": 0.04,
         "money_movement": 0.04,
         "transactional": 0.04,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
     "expect": "auto_archive"
@@ -336,7 +344,8 @@
         "financial_exception": 0.04,
         "money_movement": 0.04,
         "transactional": 0.04,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
     "expect": "auto_archive"
@@ -374,7 +383,8 @@
         "financial_exception": 0.04,
         "money_movement": 0.04,
         "transactional": 0.04,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
     "expect": "queue_filing"
@@ -412,7 +422,8 @@
         "financial_exception": 0.04,
         "money_movement": 0.04,
         "transactional": 0.04,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
     "expect": "auto_archive"
@@ -450,7 +461,8 @@
         "financial_exception": 0.04,
         "money_movement": 0.04,
         "transactional": 0.04,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
     "expect": "auto_archive"
@@ -488,7 +500,8 @@
         "financial_exception": 0.04,
         "money_movement": 0.04,
         "transactional": 0.04,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
     "expect": "auto_archive"
@@ -527,7 +540,8 @@
         "financial_exception": 0.04,
         "money_movement": 0.04,
         "transactional": 0.04,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
     "expect": "queue_filing"
@@ -565,10 +579,11 @@
         "financial_exception": 0.04,
         "money_movement": 0.04,
         "transactional": 0.04,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
-    "expect": "queue_filing"
+    "expect": "auto_archive"
   },
   {
     "threadId": "t16",
@@ -603,7 +618,8 @@
         "financial_exception": 0.04,
         "money_movement": 0.04,
         "transactional": 0.4,
-        "dev_bot": 0.96
+        "dev_bot": 0.96,
+        "stale": 0.1
       }
     },
     "expect": "auto_archive"
@@ -641,7 +657,8 @@
         "financial_exception": 0.04,
         "money_movement": 0.04,
         "transactional": 0.4,
-        "dev_bot": 0.96
+        "dev_bot": 0.96,
+        "stale": 0.1
       }
     },
     "expect": "auto_archive"
@@ -679,7 +696,8 @@
         "financial_exception": 0.04,
         "money_movement": 0.04,
         "transactional": 0.4,
-        "dev_bot": 0.96
+        "dev_bot": 0.96,
+        "stale": 0.1
       }
     },
     "expect": "queue_filing"
@@ -717,7 +735,8 @@
         "financial_exception": 0.04,
         "money_movement": 0.04,
         "transactional": 0.4,
-        "dev_bot": 0.96
+        "dev_bot": 0.96,
+        "stale": 0.1
       }
     },
     "expect": "auto_archive"
@@ -756,7 +775,8 @@
         "financial_exception": 0.1,
         "money_movement": 0.04,
         "transactional": 0.5,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
     "expect": "proposed"
@@ -795,7 +815,8 @@
         "financial_exception": 0.1,
         "money_movement": 0.04,
         "transactional": 0.5,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
     "expect": "proposed"
@@ -834,7 +855,8 @@
         "financial_exception": 0.1,
         "money_movement": 0.04,
         "transactional": 0.5,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
     "expect": "proposed"
@@ -873,7 +895,8 @@
         "financial_exception": 0.8,
         "money_movement": 0.04,
         "transactional": 0.04,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
     "expect": "queue_filing"
@@ -912,7 +935,8 @@
         "financial_exception": 0.04,
         "money_movement": 0.04,
         "transactional": 0.88,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
     "expect": "proposed"
@@ -951,7 +975,8 @@
         "financial_exception": 0.04,
         "money_movement": 0.04,
         "transactional": 0.9,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
     "expect": "proposed"
@@ -989,7 +1014,8 @@
         "financial_exception": 0.04,
         "money_movement": 0.04,
         "transactional": 0.92,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
     "expect": "proposed"
@@ -1027,7 +1053,8 @@
         "financial_exception": 0.04,
         "money_movement": 0.04,
         "transactional": 0.9,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
     "expect": "proposed"
@@ -1065,7 +1092,8 @@
         "financial_exception": 0.04,
         "money_movement": 0.04,
         "transactional": 0.9,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
     "expect": "auto_archive"
@@ -1104,7 +1132,8 @@
         "financial_exception": 0.04,
         "money_movement": 0.04,
         "transactional": 0.5,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
     "expect": "queue_filing"
@@ -1143,7 +1172,8 @@
         "financial_exception": 0.04,
         "money_movement": 0.04,
         "transactional": 0.04,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
     "expect": "queue_filing"
@@ -1182,7 +1212,8 @@
         "financial_exception": 0.04,
         "money_movement": 0.04,
         "transactional": 0.04,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
     "expect": "queue_filing"
@@ -1221,7 +1252,8 @@
         "financial_exception": 0.04,
         "money_movement": 0.04,
         "transactional": 0.04,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
     "expect": "queue_important",
@@ -1265,7 +1297,8 @@
         "financial_exception": 0.04,
         "money_movement": 0.04,
         "transactional": 0.04,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
     "expect": "queue_important",
@@ -1308,7 +1341,8 @@
         "financial_exception": 0.04,
         "money_movement": 0.04,
         "transactional": 0.04,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
     "expect": "queue_filing"
@@ -1346,7 +1380,8 @@
         "financial_exception": 0.04,
         "money_movement": 0.04,
         "transactional": 0.9,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
     "expect": "proposed"
@@ -1384,7 +1419,8 @@
         "financial_exception": 0.04,
         "money_movement": 0.04,
         "transactional": 0.04,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
     "expect": "auto_archive"
@@ -1422,7 +1458,8 @@
         "financial_exception": 0.04,
         "money_movement": 0.04,
         "transactional": 0.04,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
     "expect": "auto_archive"
@@ -1461,7 +1498,414 @@
         "financial_exception": 0.1,
         "money_movement": 0.04,
         "transactional": 0.5,
-        "dev_bot": 0.04
+        "dev_bot": 0.04,
+        "stale": 0.1
+      }
+    },
+    "expect": "proposed"
+  },
+  {
+    "threadId": "t39",
+    "latestMessageId": "m39",
+    "fromName": "Contoso Status",
+    "fromAddress": "status@contoso.example.com",
+    "subject": "Scheduled maintenance this Saturday 2am-4am",
+    "daysAgo": 45,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Our service will be unavailable for two hours while we upgrade our systems.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "label:Work",
+        "confidence": 0.45,
+        "probabilities": {
+          "label:Work": 0.45,
+          "label:Home": 0.3,
+          "archive": 0.2,
+          "keep": 0.05
+        }
+      },
+      "nouls": {
+        "important": 0.55,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.04,
+        "newsletter": 0.04,
+        "automated_sender": 0.96,
+        "needs_attention": 0.1,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.04,
+        "dev_bot": 0.04,
+        "stale": 0.93
+      }
+    },
+    "expect": "auto_archive"
+  },
+  {
+    "threadId": "t40",
+    "latestMessageId": "m40",
+    "fromName": "Northwind Accounts",
+    "fromAddress": "no-reply@northwind.example.com",
+    "subject": "Your verification code is 482913",
+    "daysAgo": 30,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Use this code to finish signing in. It expires in 10 minutes.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "archive",
+        "confidence": 0.6,
+        "probabilities": {
+          "archive": 0.6,
+          "keep": 0.1,
+          "label:Work": 0.25
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.04,
+        "newsletter": 0.04,
+        "automated_sender": 0.96,
+        "needs_attention": 0.1,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.04,
+        "dev_bot": 0.04,
+        "stale": 0.97
+      }
+    },
+    "expect": "auto_archive"
+  },
+  {
+    "threadId": "t41",
+    "latestMessageId": "m41",
+    "fromName": "Fabrikam Security",
+    "fromAddress": "security@fabrikam.example.com",
+    "subject": "New sign-in from Chrome on Windows",
+    "daysAgo": 40,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "We noticed a new sign-in to your account. If this was you, no action is needed.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "keep",
+        "confidence": 0.5,
+        "probabilities": {
+          "keep": 0.5,
+          "archive": 0.3,
+          "label:Work": 0.15
+        }
+      },
+      "nouls": {
+        "important": 0.75,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.04,
+        "newsletter": 0.04,
+        "automated_sender": 0.96,
+        "needs_attention": 0.6,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.04,
+        "dev_bot": 0.04,
+        "stale": 0.92
+      }
+    },
+    "expect": "auto_archive"
+  },
+  {
+    "threadId": "t42",
+    "latestMessageId": "m42",
+    "fromName": "Tailspin Gear",
+    "fromAddress": "promo@tailspin.example.org",
+    "subject": "Our summer sale ends tonight",
+    "daysAgo": 50,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Last day to save up to 40% across the store.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "label:Receipts",
+        "confidence": 0.35,
+        "probabilities": {
+          "label:Receipts": 0.35,
+          "label:Home": 0.3,
+          "archive": 0.25,
+          "keep": 0.1
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.9,
+        "newsletter": 0.04,
+        "automated_sender": 0.96,
+        "needs_attention": 0.1,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.04,
+        "dev_bot": 0.04,
+        "stale": 0.95
+      }
+    },
+    "expect": "auto_archive"
+  },
+  {
+    "threadId": "t43",
+    "latestMessageId": "m43",
+    "fromName": "Contoso Cloud",
+    "fromAddress": "welcome@contoso.example.com",
+    "subject": "Welcome to Contoso, here is how to get started",
+    "daysAgo": 35,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Thanks for signing up. Take a quick tour of the features.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "label:Work",
+        "confidence": 0.3,
+        "probabilities": {
+          "label:Work": 0.3,
+          "label:Home": 0.28,
+          "archive": 0.3,
+          "keep": 0.12
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.04,
+        "newsletter": 0.04,
+        "automated_sender": 0.96,
+        "needs_attention": 0.1,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.04,
+        "dev_bot": 0.04,
+        "stale": 0.88
+      }
+    },
+    "expect": "auto_archive"
+  },
+  {
+    "threadId": "t44",
+    "latestMessageId": "m44",
+    "fromName": "Adventure Works Dental",
+    "fromAddress": "reminders@adventure-works.example.org",
+    "subject": "Reminder: your appointment is tomorrow at 9:00 AM",
+    "daysAgo": 33,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "This is a reminder of your upcoming dental cleaning.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "label:Home",
+        "confidence": 0.5,
+        "probabilities": {
+          "label:Home": 0.5,
+          "keep": 0.3,
+          "archive": 0.15
+        }
+      },
+      "nouls": {
+        "important": 0.6,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.04,
+        "newsletter": 0.04,
+        "automated_sender": 0.96,
+        "needs_attention": 0.6,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.6,
+        "dev_bot": 0.04,
+        "stale": 0.94
+      }
+    },
+    "expect": "auto_archive"
+  },
+  {
+    "threadId": "t45",
+    "latestMessageId": "m45",
+    "fromName": "Fabrikam Store",
+    "fromAddress": "orders@fabrikam.example.com",
+    "subject": "Your receipt from Fabrikam",
+    "daysAgo": 40,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Thanks for your order. Receipt attached for your records.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "label:Receipts",
+        "confidence": 0.55,
+        "probabilities": {
+          "label:Receipts": 0.55,
+          "label:Home": 0.3,
+          "archive": 0.1,
+          "keep": 0.05
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.04,
+        "newsletter": 0.04,
+        "automated_sender": 0.96,
+        "needs_attention": 0.6,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.7,
+        "dev_bot": 0.04,
+        "stale": 0.12
+      }
+    },
+    "expect": "queue_filing"
+  },
+  {
+    "threadId": "t46",
+    "latestMessageId": "m46",
+    "fromName": "Contoso Helpdesk",
+    "fromAddress": "helpdesk@contoso.example.com",
+    "subject": "Re: your refund request, awaiting your reply",
+    "daysAgo": 30,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "We replied to your request three weeks ago. Please confirm the details so we can proceed.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "keep",
+        "confidence": 0.5,
+        "probabilities": {
+          "keep": 0.5,
+          "archive": 0.3,
+          "label:Work": 0.15
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.8,
+        "bulk_marketing": 0.04,
+        "newsletter": 0.04,
+        "automated_sender": 0.92,
+        "needs_attention": 0.5,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.04,
+        "dev_bot": 0.04,
+        "stale": 0.9
+      }
+    },
+    "expect": "queue_filing"
+  },
+  {
+    "threadId": "t47",
+    "latestMessageId": "m47",
+    "fromName": "Weekly Deals Digest",
+    "fromAddress": "deals@northwind.example.com",
+    "subject": "This week in deals and discounts",
+    "daysAgo": 40,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "Browse a curated list of offers from our partners.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "label:Newsletters worth reading",
+        "confidence": 0.4,
+        "probabilities": {
+          "label:Newsletters worth reading": 0.4,
+          "archive": 0.35,
+          "label:Home": 0.15,
+          "keep": 0.05
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.9,
+        "newsletter": 0.5,
+        "automated_sender": 0.96,
+        "needs_attention": 0.1,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.04,
+        "dev_bot": 0.04,
+        "stale": 0.1
+      }
+    },
+    "expect": "auto_archive"
+  },
+  {
+    "threadId": "t48",
+    "latestMessageId": "m48",
+    "fromName": "Weekly Deals Digest",
+    "fromAddress": "digest@tailspin.example.org",
+    "subject": "More offers picked for you",
+    "daysAgo": 36,
+    "labels": [
+      "INBOX",
+      "UNREAD"
+    ],
+    "body": "A selection of promotions from our partners.",
+    "unread": true,
+    "jev": {
+      "destination": {
+        "choice": "label:Newsletters worth reading",
+        "confidence": 0.7,
+        "probabilities": {
+          "label:Newsletters worth reading": 0.7,
+          "archive": 0.2,
+          "label:Home": 0.05,
+          "keep": 0.05
+        }
+      },
+      "nouls": {
+        "important": 0.04,
+        "needs_reply": 0.04,
+        "bulk_marketing": 0.9,
+        "newsletter": 0.5,
+        "automated_sender": 0.96,
+        "needs_attention": 0.1,
+        "routine_financial": 0.04,
+        "financial_exception": 0.04,
+        "money_movement": 0.04,
+        "transactional": 0.04,
+        "dev_bot": 0.04,
+        "stale": 0.1
       }
     },
     "expect": "proposed"

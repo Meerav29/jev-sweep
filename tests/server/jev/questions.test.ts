@@ -29,3 +29,15 @@ test('ageDays floors and never goes negative', () => {
   expect(ageDays('2026-10-29T12:00:00Z', now)).toBe(1);
   expect(ageDays('2026-11-02T00:00:00Z', now)).toBe(0);
 });
+
+test('state carries today as YYYY-MM-DD', () => {
+  expect(buildState(email, folders, new Date('2026-10-31T23:30:00Z')).today).toBe('2026-10-31');
+});
+test('stale and the today-aware important instructions are exactly as specified', () => {
+  const { questions } = buildQuestions([]);
+  const text = (id: string) => JSON.stringify(questions[id]);
+  expect(text('stale')).toContain('has the event, deadline, offer, alert, code, delivery or announcement it is about already passed');
+  expect(text('stale')).toContain('is not stale.');
+  expect(text('important')).toContain('needs to know or do **today**');
+  expect(text('important')).toContain('given how old it is?');
+});

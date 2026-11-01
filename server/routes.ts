@@ -79,7 +79,7 @@ function threadIdOf(b: Record<string, unknown>): string {
 }
 
 const BATCH_SIZES = [10, 20, 30, 50];
-const UNIT_THRESHOLDS = ['guardNoul', 'importantQueue', 'needsReplyQueue', 'autoArchiveConfidence', 'proposeConfidence'] as const;
+const UNIT_THRESHOLDS = ['guardNoul', 'importantQueue', 'needsReplyQueue', 'autoArchiveConfidence', 'proposeConfidence', 'staleConfidence', 'junkMaxKeep'] as const;
 
 function parseFolder(v: unknown, i: number): Folder {
   if (!v || typeof v !== 'object' || Array.isArray(v)) throw bad(`folders[${i}] must be an object`);
@@ -119,9 +119,9 @@ export function parseSettingsPatch(b: Record<string, unknown>): Partial<Settings
         if (!v || typeof v !== 'object' || Array.isArray(v)) throw bad('thresholds must be an object');
         const t: Partial<Thresholds> = {};
         for (const [tk, tv] of Object.entries(v as Record<string, unknown>)) {
-          if (tk === 'recentDays') {
-            if (typeof tv !== 'number' || !Number.isInteger(tv) || tv <= 0) throw bad('thresholds.recentDays must be a positive integer');
-            t.recentDays = tv;
+          if (tk === 'recentDays' || tk === 'staleDays') {
+            if (typeof tv !== 'number' || !Number.isInteger(tv) || tv <= 0) throw bad(`thresholds.${tk} must be a positive integer`);
+            t[tk] = tv;
           } else if ((UNIT_THRESHOLDS as readonly string[]).includes(tk)) {
             if (typeof tv !== 'number' || !Number.isFinite(tv) || tv < 0 || tv > 1) throw bad(`thresholds.${tk} must be a number from 0 to 1`);
             t[tk as typeof UNIT_THRESHOLDS[number]] = tv;
