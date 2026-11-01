@@ -89,6 +89,7 @@ export function decide(a: JevAnswers, ageDays: number, t: Thresholds): Outcome {
 
   if (
     triageArchive &&
+    n.needs_reply < NO_REPLY_MAX &&
     choice === 'archive' &&
     confidence >= t.autoArchiveConfidence
   ) return { kind: 'auto_archive' };

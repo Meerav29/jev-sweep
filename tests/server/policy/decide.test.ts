@@ -110,3 +110,13 @@ test('junk rule: needs_reply 0.3 does not auto-archive', () =>
   expect(decide(junkReply(0.3), 30, T).kind).not.toBe('auto_archive'));
 test('junk rule: needs_reply 0.6 does not auto-archive', () =>
   expect(decide(junkReply(0.6), 30, T).kind).not.toBe('auto_archive'));
+
+// Confident-archive branch (no keep figure, so the junk rule is skipped) has the same protection.
+const confidentArchive = (needsReply: number) =>
+  ans({ nouls: { stale: 0.05, needs_reply: needsReply }, destination: { choice: 'archive', confidence: 0.9, probabilities: {} } });
+test('confident archive: needs_reply 0.29 still auto-archives', () =>
+  expect(decide(confidentArchive(0.29), 30, T)).toEqual({ kind: 'auto_archive' }));
+test('confident archive: needs_reply 0.3 does not auto-archive', () =>
+  expect(decide(confidentArchive(0.3), 30, T).kind).not.toBe('auto_archive'));
+test('confident archive: needs_reply 0.6 does not auto-archive', () =>
+  expect(decide(confidentArchive(0.6), 30, T).kind).not.toBe('auto_archive'));
