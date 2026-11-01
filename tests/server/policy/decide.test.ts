@@ -97,3 +97,16 @@ test('junk rule does not fire when guarded', () =>
   expect(decide(ans({ nouls: { important: 0.6, stale: 0.05 }, destination: { choice: 'label:Travel', confidence: 0.4, probabilities: { keep: 0.05 } } }), 30, T).kind).toBe('queue'));
 test('archive confidence below 0.85 with keep unlikely is junk and auto-archives', () =>
   expect(decide(ans({ destination: { choice: 'archive', confidence: 0.84, probabilities: { keep: 0.05 } } }), 30, T)).toEqual({ kind: 'auto_archive' }));
+
+// Mail someone may be waiting on is never archived by the junk rule.
+const junkReply = (needsReply: number) =>
+  ans({
+    nouls: { stale: 0.05, needs_reply: needsReply },
+    destination: { choice: 'label:Travel', confidence: 0.4, probabilities: { keep: 0.05 } },
+  });
+test('junk rule: needs_reply 0.29 still auto-archives', () =>
+  expect(decide(junkReply(0.29), 30, T)).toEqual({ kind: 'auto_archive' }));
+test('junk rule: needs_reply 0.3 does not auto-archive', () =>
+  expect(decide(junkReply(0.3), 30, T).kind).not.toBe('auto_archive'));
+test('junk rule: needs_reply 0.6 does not auto-archive', () =>
+  expect(decide(junkReply(0.6), 30, T).kind).not.toBe('auto_archive'));

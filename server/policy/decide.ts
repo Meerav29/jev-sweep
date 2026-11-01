@@ -20,7 +20,7 @@ const TRANSACTIONAL_AUTOMATED_MIN = 0.8;
 
 // Policy v2 fixed bars (the tunable ones live in Thresholds).
 const STALE_AUTOMATED_MIN = 0.9;
-const STALE_NEEDS_REPLY_MAX = 0.3;
+const NO_REPLY_MAX = 0.3; // needs_reply must be below this for the stale and junk rules to archive
 const STALE_FINANCIAL_MAX = 0.5;
 
 /** True exactly where score.py decide() returns "archive". */
@@ -59,7 +59,7 @@ export function decide(a: JevAnswers, ageDays: number, t: Thresholds): Outcome {
     ageDays >= t.staleDays &&
     n.stale >= t.staleConfidence &&
     n.automated_sender >= STALE_AUTOMATED_MIN &&
-    n.needs_reply < STALE_NEEDS_REPLY_MAX &&
+    n.needs_reply < NO_REPLY_MAX &&
     n.financial_exception < STALE_FINANCIAL_MAX &&
     n.money_movement < STALE_FINANCIAL_MAX
   ) return { kind: 'auto_archive' };
@@ -78,11 +78,11 @@ export function decide(a: JevAnswers, ageDays: number, t: Thresholds): Outcome {
 
   const triageArchive = !guard && triageSaysArchive(n, ageDays, t.recentDays);
 
-  // Junk: triage says archive and Jev does not want it kept. Similar folders split the vote, so a weak
+  // Junk: triage says archive, nobody looks to be waiting on a reply, and Jev does not want it kept. Similar folders split the vote, so a weak
   // pick means archive; a confident pick is proposed.
   // Needs an explicit keep probability: absent means Jev did not say, and 'keep' as the pick is a vote to keep.
   const keepP = a.destination.probabilities.keep;
-  if (triageArchive && choice !== 'keep' && keepP !== undefined && keepP <= t.junkMaxKeep) {
+  if (triageArchive && n.needs_reply < NO_REPLY_MAX && choice !== 'keep' && keepP !== undefined && keepP <= t.junkMaxKeep) {
     if (choice.startsWith('label:') && confidence >= t.proposeConfidence) return { kind: 'proposed', dest: choice };
     return { kind: 'auto_archive' };
   }
