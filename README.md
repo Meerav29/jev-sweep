@@ -25,7 +25,7 @@ Open http://localhost:5173 and start a session. The API runs on port 8787 and li
 
 Copy `.env.example` to `.env` and fill in the keys below. `.env` and `data/` are git-ignored. Then run `npm run dev` (without `:fake`) and open http://localhost:5173. `.env` is read once when the server starts, so restart after editing it.
 
-The Setup screen is a five-item checklist: TypeSafe key, Anthropic key, Google client, Gmail connected, and Folders chosen. The app stays on Setup until all five are done. Choose folders (the Gmail labels Jev may file into) only works after Gmail is connected, so it is the last step.
+The Setup screen is a five-item checklist: TypeSafe key, Anthropic key (optional), Google client, Gmail connected, and Folders chosen. The app stays on Setup until the four required items are done; the Anthropic key never blocks it. Choose folders (the Gmail labels Jev may file into) only works after Gmail is connected, so it is the last step.
 
 ### TypeSafe
 
@@ -39,13 +39,13 @@ TYPESAFE_API_KEY=...
 
 ### Anthropic
 
-Claude writes the helper text on cards (details under Privacy and the generative UI section). Create a key in the [Anthropic Console](https://console.anthropic.com/) and put it in `.env`:
+This key is optional. An Anthropic key lets each review card explain why it's asking and summarize important emails; without one, cards still work, just without that text. Claude writes that helper text (details under Privacy and the generative UI section). To use it, create a key in the [Anthropic Console](https://console.anthropic.com/) and put it in `.env`:
 
 ```
 ANTHROPIC_API_KEY=...
 ```
 
-`CLAUDE_MODEL` picks the model (default `claude-haiku-5-5`). Claude writes a "why" line for every queued card, and a short summary only for important cards. If a Claude call fails or takes more than a few seconds, the card is shown without that text.
+`CLAUDE_MODEL` picks the model (default `claude-haiku-5-5`). Claude writes a "why" line for every queued card, and a short summary only for important cards. If a Claude call fails or takes more than a few seconds, the card is shown without that text. With no key set, nothing is sent to Anthropic.
 
 ### Google
 
@@ -97,6 +97,37 @@ This single-quoted form works in Git Bash, WSL, macOS and Linux. In PowerShell:
 Invoke-RestMethod -Method Put -Uri http://localhost:8787/api/settings `
   -ContentType 'application/json' -Body '{"query":"in:inbox is:unread"}'
 ```
+
+## How it decides
+
+For each email, Jev answers a set of questions (is it junk, is it a notice whose moment has passed, is someone waiting on me, does it involve money, was a person likely to have written it) and picks where it belongs. [`server/policy/decide.ts`](server/policy/decide.ts) turns those answers into one of three outcomes, checked in this order:
+
+1. **Old notices are archived, even if they once looked important.** Automated mail that is at least `staleDays` old and that Jev is sure no longer matters (a shipping notice for a parcel that arrived, a login code, an event that already happened) is archived. This rule runs before the importance check, because an old notice can still look important in isolation. It does not apply if anyone looks to be waiting on a reply, or if money is involved.
+2. **Anything a person is waiting on goes to you.** Important mail and mail that needs a reply become review cards. They are never archived automatically.
+3. **Very-sure junk leaves the inbox.** If Jev is very sure the email is junk and does not want it kept (its chance of "keep" is at most `junkMaxKeep`, and it has to give a keep figure at all), it is archived. If Jev is also sure of one folder (confidence at least `proposeConfidence`), the email is proposed for that folder instead; the move happens only when you press Apply. Similar folders split Jev's vote, so a weak folder pick means archive. If Jev's own pick is to keep the email, this rule never archives it.
+
+Money problems (a failed payment, a bill due), anything that reads as human-written, and anything Jev flags as important are never auto-archived, whichever rule applies. Everything that no rule is sure about waits for you as a card: confident folder picks are proposed, the rest are asked.
+
+The thresholds, with their defaults:
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `staleDays` | 14 | Age in days before the old-notice rule can apply |
+| `staleConfidence` | 0.85 | How sure Jev must be that the notice is stale |
+| `junkMaxKeep` | 0.15 | Highest "keep" probability at which the junk rule still archives or proposes |
+| `autoArchiveConfidence` | 0.85 | Confidence needed to archive on Jev's pick of the archive destination |
+| `proposeConfidence` | 0.6 | Confidence needed to propose a folder |
+| `importantQueue`, `needsReplyQueue` | 0.7 | Chance of important / needs reply that makes a card |
+| `guardNoul` | 0.5 | Money, human-written or important at this level blocks automatic archiving and proposals |
+| `recentDays` | 7 | Mail younger than this needs a stricter bar to be archived |
+
+See them with `curl http://localhost:8787/api/settings` and change any of them with `PUT /api/settings`, sending only the ones you want under `thresholds` (the rest keep their values):
+
+```sh
+curl -X PUT http://localhost:8787/api/settings   -H 'Content-Type: application/json'   -d '{"thresholds":{"staleDays":21,"junkMaxKeep":0.1}}'
+```
+
+Typing "Archive" as a folder name anywhere means the archive action, not a label called Archive.
 
 ## How the generative UI works
 
