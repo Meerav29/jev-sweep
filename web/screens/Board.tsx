@@ -196,7 +196,8 @@ export function Board({ batchId, readOnly, onHome, onSession }: Props) {
   const sub = finished && mixed ? 'Some moves were applied in Gmail; dry-run ones were not.'
     : finished && wasDry ? 'Dry run: nothing was changed in Gmail.'
     : applied ? 'These moves have been applied in Gmail.'
-    : `Drag a card to change where it goes. Nothing has moved in Gmail yet.${dryRun ? ` (${DRY_RUN_NOTE})` : ''}`;
+    : dryRun ? `Drag a card to change where it goes. Nothing has moved in Gmail yet. (${DRY_RUN_NOTE})`
+    : "Drag a card to change where it goes. Only Jev's sure archives have moved. Nothing else changes in Gmail until you apply.";
   const shownError = actionError ?? error;
 
   const renderChip = (d: Decision) => {
