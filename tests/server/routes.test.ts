@@ -13,6 +13,7 @@ import { FakeJev } from '../../server/jev/client';
 import type { JevClient } from '../../server/jev/client';
 import { FakeWriter } from '../../server/claude/cardText';
 import { loadConfig } from '../../server/config';
+import { parseDest } from '../../server/routes';
 import { oauthRoutes } from '../../server/mail/oauth';
 import type { BatchView, Email, JevAnswers, QueueItem, SessionEvent } from '../../shared/types';
 
@@ -342,6 +343,18 @@ describe('real mode', () => {
     expect(((await (await call('/api/setup')).json()) as { foldersChosen: boolean }).foldersChosen).toBe(true);
   });
 
+  test('without an Anthropic key the runtime still builds (key is optional); without TypeSafe it does not', async () => {
+    const { tokenPath } = realSetup({ TYPESAFE_API_KEY: 'ts-1', GOOGLE_CLIENT_ID: 'g', GOOGLE_CLIENT_SECRET: 's' });
+    expect(services.runtime()).toBeNull(); // no Gmail token yet
+    mkdirSync(join(tokenPath, '..'), { recursive: true });
+    writeFileSync(tokenPath, JSON.stringify({ access_token: 'a', refresh_token: 'r' }));
+    expect(services.setupStatus().anthropic).toBe(false);
+    expect(services.runtime()).not.toBeNull();
+    const t2 = realSetup({ GOOGLE_CLIENT_ID: 'g', GOOGLE_CLIENT_SECRET: 's' });
+    writeFileSync(t2.tokenPath, JSON.stringify({ access_token: 'a', refresh_token: 'r' }));
+    expect(services.runtime()).toBeNull();
+  });
+
   test('batch routes are 503 until configured (a known batch, not a 404)', async () => {
     realSetup({});
     const sessionId = repo.createSession().id;
@@ -415,6 +428,15 @@ describe('validation', () => {
     expect((await post(`/api/batches/${batchId}/jump`, {})).status).toBe(400);
     expect(repo.loadBatch(batchId).decisions.some((d) => d.threadId === t)).toBe(false);
     expect((await resolve({ threadId: t, dest: 'label:Receipts', star: true })).status).toBe(200);
+  });
+
+  test('"Archive" in any case or padding means the archive destination, not a label', async () => {
+    const t = runner().view(batchId).current!.threadId;
+    expect(parseDest('label:Archive')).toBe('archive');
+    expect(parseDest('label:  aRCHIVE ')).toBe('archive');
+    expect(parseDest('label:Archives')).toBe('label:Archives');
+    expect((await resolve({ threadId: t, dest: 'label:archive' })).status).toBe(200);
+    expect(repo.loadBatch(batchId).decisions.find((d) => d.threadId === t)?.dest).toBe('archive');
   });
 
   test('system label names are refused as destinations and folders', async () => {

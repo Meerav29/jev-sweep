@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { folderDest } from '../../shared/labels';
 import type { BatchView, Decision, Dest } from '../../shared/types';
 import { ApiError, api } from '../api';
 import { FolderCombo } from '../cards/parts';
@@ -171,7 +172,11 @@ export function Board({ batchId, readOnly, onHome, onSession }: Props) {
   const columns = boardColumns(decisions, readOnly ? [] : ['archive', ...extra, 'keep']);
   const boardFolders = columns.map((c) => c.dest).filter((d) => d.startsWith('label:')).map(destLabel);
   const folders = folderChoices([...labels.labels, ...boardFolders], labels.enabled);
-  const addColumn = (name: string) => setExtra((x) => (x.includes(`label:${name}`) ? x : [...x, `label:${name}`]));
+  const addColumn = (name: string) => {
+    const dest = folderDest(name);
+    if (dest === 'archive') return; // the Archive column is always on the board
+    setExtra((x) => (x.includes(dest) ? x : [...x, dest]));
+  };
 
   const sel = selected ? decisions.find((d) => d.threadId === selected) : undefined;
   const selMovable = sel && isMovable(sel) ? sel : undefined;
@@ -276,7 +281,7 @@ export function Board({ batchId, readOnly, onHome, onSession }: Props) {
             {columns.filter((c) => c.dest !== selMovable.dest).map((c) => (
               <button key={c.dest} type="button" className="btn" onClick={() => move(selMovable.threadId, c.dest)}>{destLabel(c.dest)}</button>
             ))}
-            <FolderPicker folders={folders} onPick={(name) => move(selMovable.threadId, `label:${name}`)} />
+            <FolderPicker folders={folders} onPick={(name) => move(selMovable.threadId, folderDest(name))} />
             <button type="button" className="btn ghost" onClick={() => setSelected(null)}>Cancel</button>
           </div>
         ) : (

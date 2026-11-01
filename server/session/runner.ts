@@ -351,6 +351,7 @@ export class BatchRunner {
     let counted = false;
     try {
       const email = await this.deps.mail.getThread(t);
+      if (s.status !== 'running') return; // discarded or applied while the fetch was in flight: write nothing
       counted = true;
       s.fetched++;
       if (!email) this.skip(s, t, true);

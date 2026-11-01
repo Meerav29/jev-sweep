@@ -80,7 +80,9 @@ export function decide(a: JevAnswers, ageDays: number, t: Thresholds): Outcome {
 
   // Junk: triage says archive and Jev does not want it kept. Similar folders split the vote, so a weak
   // pick means archive; a confident pick is proposed.
-  if (triageArchive && (a.destination.probabilities.keep ?? 0) <= t.junkMaxKeep) {
+  // Needs an explicit keep probability: absent means Jev did not say, and 'keep' as the pick is a vote to keep.
+  const keepP = a.destination.probabilities.keep;
+  if (triageArchive && choice !== 'keep' && keepP !== undefined && keepP <= t.junkMaxKeep) {
     if (choice.startsWith('label:') && confidence >= t.proposeConfidence) return { kind: 'proposed', dest: choice };
     return { kind: 'auto_archive' };
   }

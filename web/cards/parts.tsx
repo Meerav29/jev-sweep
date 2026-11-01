@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { isArchiveName, isSystemLabel } from '../../shared/labels';
 import type { CardOption, CardSpec, Dest } from '../../shared/types';
 import { reducedMotion } from '../components/flyTo';
 import type { CardProps } from './registry';
@@ -6,12 +7,8 @@ import type { CardProps } from './registry';
 /** How long a picked option stays lit while the others fold away, before the choice is sent. */
 export const LOCK_IN_MS = 520;
 
-const SYSTEM_LABELS = new Set(['INBOX', 'SPAM', 'TRASH', 'UNREAD', 'STARRED', 'IMPORTANT', 'SENT', 'DRAFT', 'CHAT']);
 /** Mirrors the server's check: Gmail owns these names, so they can't be made into folders. */
-export function isReservedLabel(name: string): boolean {
-  const u = name.trim().toUpperCase();
-  return SYSTEM_LABELS.has(u) || u.startsWith('CATEGORY_');
-}
+export const isReservedLabel = isSystemLabel;
 
 /** What a winning control is called while the card locks in, so it can be lit and the rest folded away. */
 export type WinKey = `opt:${number}` | 'keep' | 'archive' | 'other' | 'reply';
@@ -141,7 +138,8 @@ export function FolderCombo({ folders, disabled, onPick }: { folders: string[]; 
     const list: { key: string; label: string; name: string }[] = folders
       .filter((f) => f.toLowerCase().includes(q))
       .map((f) => ({ key: `f:${f}`, label: f, name: f }));
-    if (typed && !exact && !reserved) list.push({ key: 'create', label: `Create “${typed}”`, name: typed });
+    if (typed && isArchiveName(typed)) list.push({ key: 'archive', label: 'Archive', name: typed });
+    else if (typed && !exact && !reserved) list.push({ key: 'create', label: `Create “${typed}”`, name: typed });
     return list;
   }, [folders, typed, exact, reserved]);
 

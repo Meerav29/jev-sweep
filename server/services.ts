@@ -4,7 +4,7 @@ import type { Config } from './config';
 import type { Repo } from './db/repo';
 import type { EventHub } from './events';
 import { ClaudeWriter, FakeWriter } from './claude/cardText';
-import type { CardTextWriter } from './claude/cardText';
+import type { CardText, CardTextWriter } from './claude/cardText';
 import { FakeJev, TypeSafeJev } from './jev/client';
 import type { JevClient } from './jev/client';
 import { FakeMail, loadFakeInbox } from './mail/fake';
@@ -96,6 +96,11 @@ class SwitchMail implements MailProvider {
   markRead(t: string) { return this.target.markRead(t); }
 }
 
+/** Used when there is no Anthropic key: cards get no extra text. */
+class NoWriter implements CardTextWriter {
+  async write(): Promise<CardText> { return {}; }
+}
+
 /** Real mode: Gmail, TypeSafe Jev and Claude, each picked up once its key or token exists. */
 export function realServices(o: { repo: Repo; hub: EventHub; config: Config; tokenPath: string }): Services {
   const { config, tokenPath, repo } = o;
@@ -128,9 +133,10 @@ export function realServices(o: { repo: Repo; hub: EventHub; config: Config; tok
     runtime: () => {
       if (runtime) return runtime;
       const m = getMail();
-      if (!m || !keys.typesafe || !keys.anthropic) return null;
+      if (!m || !keys.typesafe) return null;
       const jev = new TypeSafeJev(keys.typesafe, config.jevModel);
-      const writer = new ClaudeWriter(keys.anthropic, config.claudeModel);
+      // The Anthropic key is optional: without it cards simply carry no "why" line or summary.
+      const writer: CardTextWriter = keys.anthropic ? new ClaudeWriter(keys.anthropic, config.claudeModel) : new NoWriter();
       runtime = {
         mail: m,
         runner: makeRunner({ repo, hub: o.hub, concurrency: config.concurrency, cardTextTimeoutMs: config.cardTextTimeoutMs },

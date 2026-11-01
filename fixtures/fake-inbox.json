@@ -565,7 +565,8 @@
         "confidence": 0.55,
         "probabilities": {
           "label:Newsletters worth reading": 0.55,
-          "archive": 0.4
+          "archive": 0.4,
+          "keep": 0.05
         }
       },
       "nouls": {

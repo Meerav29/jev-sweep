@@ -247,6 +247,26 @@ test('the "+ Folder" picker on the board adds an empty column to drop into', asy
   expect(posted('/api/batches/b1/move')).toHaveLength(0);
 });
 
+test('"+ Folder" with "archive" adds no column and moves a chip to the archive destination', async () => {
+  mount();
+  FakeES.last!.emit({ type: 'snapshot', view: view() });
+  await settle();
+  fireEvent.click(screen.getByRole('button', { name: '+ Folder' }));
+  const box = screen.getByRole('combobox', { name: 'Other folder' });
+  fireEvent.change(box, { target: { value: 'archive' } });
+  fireEvent.keyDown(box, { key: 'Enter' });
+  await waitFor(() => expect(screen.getAllByTestId('board-col').map((c) => c.getAttribute('data-dest')))
+    .toEqual(['archive', 'label:Travel', 'keep']));
+  fireEvent.click(chip('subject k'));
+  const group = screen.getByRole('group', { name: 'Move to…' });
+  fireEvent.click(within(group).getByRole('button', { name: '+ Folder' }));
+  fireEvent.change(within(group).getByRole('combobox', { name: 'Other folder' }), { target: { value: 'Archive' } });
+  fireEvent.keyDown(within(group).getByRole('combobox', { name: 'Other folder' }), { key: 'Enter' });
+  await waitFor(() => expect(posted('/api/batches/b1/move')).toHaveLength(1));
+  expect(posted('/api/batches/b1/move')[0].body).toMatchObject({ dest: 'archive' });
+  await settle();
+});
+
 // ---- errors ----
 
 test('a move error is shown on the board', async () => {

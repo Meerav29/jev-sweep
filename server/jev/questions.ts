@@ -24,7 +24,7 @@ export function buildState(email: Email, folders: Folder[], now: Date): Record<s
   };
 }
 
-// important / needs_reply / stale: spec section 6.3 (important and stale are age-aware). The other eight are verbatim from inbox-triage/score.py.
+// important / needs_reply / stale: spec section 6.3 (important and stale are age-aware). The other nine inbox-triage nouls are verbatim from inbox-triage/score.py.
 const NOUL_INSTRUCTIONS: Record<NoulId, string> = {
   important: 'Does this email contain something this person needs to know or do **today** (a deadline, '
     + 'appointment, bill, security problem, or request) given how old it is?',

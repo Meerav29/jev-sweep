@@ -23,6 +23,17 @@ test('Setup lists the missing items with their fixes and marks the rest done', (
   expect(screen.getByRole('button', { name: 'Choose folders' })).toHaveProperty('disabled', true);
 });
 
+test('Setup shows Anthropic as optional, ticked only when the key is present', () => {
+  const { unmount } = render(<Setup status={status({ anthropic: false })} onFolders={() => {}} onRecheck={() => {}} />);
+  const row = screen.getByTestId('setup-anthropic');
+  expect(row.className).toBe('todo');
+  expect(row.textContent).toMatch(/optional/i);
+  expect(within(row).getByRole('link').getAttribute('href')).toMatch(/#anthropic$/);
+  unmount();
+  render(<Setup status={status({ anthropic: true })} onFolders={() => {}} onRecheck={() => {}} />);
+  expect(screen.getByTestId('setup-anthropic').className).toBe('ok');
+});
+
 test('Setup shows a sign-in error line when asked', () => {
   render(<Setup status={status({ gmailConnected: false })} authError onFolders={() => {}} onRecheck={() => {}} />);
   expect(screen.getByRole('alert').textContent).toMatch(/sign-in/i);

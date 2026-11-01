@@ -3,6 +3,7 @@ import type { Context, MiddlewareHandler } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { streamSSE } from 'hono/streaming';
 import type { BatchStatus, BatchView, Dest, Folder, SessionEvent, Settings, Thresholds } from '../shared/types';
+import { isArchiveName, isSystemLabel } from '../shared/labels';
 import type { Repo } from './db/repo';
 import type { EventHub } from './events';
 import type { Runtime, Services } from './services';
@@ -51,12 +52,7 @@ export const jsonOnly: MiddlewareHandler = async (c, next) => {
 
 // ---- validation ----
 
-const SYSTEM_LABELS = new Set(['INBOX', 'SPAM', 'TRASH', 'UNREAD', 'STARRED', 'IMPORTANT', 'SENT', 'DRAFT', 'CHAT']);
-
-export function isSystemLabel(name: string): boolean {
-  const u = name.trim().toUpperCase();
-  return SYSTEM_LABELS.has(u) || u.startsWith('CATEGORY_');
-}
+export { isSystemLabel };
 
 function checkFolderName(name: unknown, what: string): string {
   if (typeof name !== 'string' || name.trim() === '') throw bad(`${what} must be a non-empty string`);
@@ -67,7 +63,9 @@ function checkFolderName(name: unknown, what: string): string {
 export function parseDest(v: unknown): Dest {
   if (v === 'archive' || v === 'keep') return v;
   if (typeof v === 'string' && v.startsWith('label:')) {
-    checkFolderName(v.slice('label:'.length), 'label name');
+    const name = v.slice('label:'.length);
+    if (isArchiveName(name)) return 'archive';
+    checkFolderName(name, 'label name');
     return v as Dest;
   }
   throw bad('dest must be "archive", "keep" or "label:<name>"');

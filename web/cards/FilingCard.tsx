@@ -1,3 +1,4 @@
+import { folderDest } from '../../shared/labels';
 import type { CardProps } from './registry';
 import { CardHead, ChoiceError, FolderCombo, GmailLink, Options, Sender, useChoice, useOptionKeys } from './parts';
 
@@ -21,7 +22,7 @@ export function FilingCard({ card, folders, onChoose, context }: CardProps) {
       {!noOptions && <Options options={card.options} win={win} onPick={pickOption} />}
       <ChoiceError error={error} />
       <div className="row card-row">
-        <FolderCombo folders={folders} disabled={win !== null} onPick={(name) => choose(`label:${name}`, undefined, 'other')} />
+        <FolderCombo folders={folders} disabled={win !== null} onPick={(name) => choose(folderDest(name), undefined, 'other')} />
         {noOptions && (
           <button type="button" className={`btn${win === 'archive' ? ' dark' : ''}`} onClick={() => choose('archive', undefined, 'archive')}>
             Archive

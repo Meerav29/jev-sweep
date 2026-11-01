@@ -75,16 +75,18 @@ const junkAns = (keep: number | undefined, choice: JevAnswers['destination']['ch
 
 test('junk rule: triage-archive with a low-confidence folder pick auto-archives', () =>
   expect(decide(junkAns(0.05, 'label:Travel', 0.4), 30, T)).toEqual({ kind: 'auto_archive' }));
-test('junk rule: missing keep probability counts as 0', () =>
-  expect(decide(junkAns(undefined, 'label:Travel', 0.4), 30, T)).toEqual({ kind: 'auto_archive' }));
+test('junk rule: a missing keep probability never fires it (queues for the owner)', () =>
+  expect(decide(junkAns(undefined, 'label:Travel', 0.4), 30, T)).toEqual({ kind: 'queue', card: 'filing', suggestKeep: false }));
+test('junk rule: choice keep is never auto-archived, even with keep 0.05 (it is proposed as keep)', () =>
+  expect(decide(junkAns(0.05, 'keep', 0.9), 30, T)).toEqual({ kind: 'proposed', dest: 'keep' }));
+test('junk rule: choice keep with weak confidence queues, never auto-archives', () =>
+  expect(decide(junkAns(0.05, 'keep', 0.3), 30, T)).toEqual({ kind: 'queue', card: 'filing', suggestKeep: false }));
 test('junk rule: confident folder pick is proposed', () =>
   expect(decide(junkAns(0.05, 'label:Travel', 0.7), 30, T)).toEqual({ kind: 'proposed', dest: 'label:Travel' }));
 test('junk rule: confidence at proposeConfidence proposes, just below archives', () => {
   expect(decide(junkAns(0.05, 'label:Travel', 0.6), 30, T)).toEqual({ kind: 'proposed', dest: 'label:Travel' });
   expect(decide(junkAns(0.05, 'label:Travel', 0.59), 30, T)).toEqual({ kind: 'auto_archive' });
 });
-test('junk rule: a non-label choice (keep) with low keep probability archives', () =>
-  expect(decide(junkAns(0.05, 'keep', 0.9), 30, T)).toEqual({ kind: 'auto_archive' }));
 test('junk rule: junkMaxKeep boundary', () => {
   expect(decide(junkAns(0.15, 'label:Travel', 0.4), 30, T)).toEqual({ kind: 'auto_archive' });
   expect(decide(junkAns(0.16, 'label:Travel', 0.4), 30, T)).toEqual({ kind: 'queue', card: 'filing', suggestKeep: false });
@@ -94,4 +96,4 @@ test('junk rule does not fire when triage does not say archive', () =>
 test('junk rule does not fire when guarded', () =>
   expect(decide(ans({ nouls: { important: 0.6, stale: 0.05 }, destination: { choice: 'label:Travel', confidence: 0.4, probabilities: { keep: 0.05 } } }), 30, T).kind).toBe('queue'));
 test('archive confidence below 0.85 with keep unlikely is junk and auto-archives', () =>
-  expect(decide(ans({ destination: { choice: 'archive', confidence: 0.84 } }), 30, T)).toEqual({ kind: 'auto_archive' }));
+  expect(decide(ans({ destination: { choice: 'archive', confidence: 0.84, probabilities: { keep: 0.05 } } }), 30, T)).toEqual({ kind: 'auto_archive' }));

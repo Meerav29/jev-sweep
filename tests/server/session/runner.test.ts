@@ -798,3 +798,15 @@ test('a crash mid-fetch keeps saved emails; resume fetches the missing candidate
   for (const c of cands) expect(nOf.get(c.threadId)).toBe(c.n);
   expect(mirror(id)).toEqual(v);
 });
+
+test('discarding while a fetch is in flight writes no email or decision for that thread afterwards', async () => {
+  let release!: () => void;
+  mail.getThreadGate = new Promise<void>((r) => { release = r; });
+  const id = await runner.start(sessionId);
+  repo.setBatchStatus(id, 'discarded');
+  runner.refresh(id);
+  release(); await settle();
+  expect(repo.loadBatch(id).emails).toEqual([]);
+  expect(repo.loadBatch(id).decisions).toEqual([]);
+  expect(jev.calls).toBe(0);
+});
