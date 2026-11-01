@@ -18,6 +18,7 @@ export interface Decision { threadId: string; n: number; subject: string; fromNa
 export interface QueueItem { threadId: string; n: number; subject: string; important: boolean }
 export type BatchStatus = 'running' | 'reviewing' | 'applying' | 'applied' | 'discarded';
 export interface BatchView { sessionId: string; batchId: string; batchNo: number; total: number; read: number;
+  /** Candidates whose full fetch from Gmail has finished (fetched, gone or failed). Below `total` while fetching. */ fetched: number;
   status: BatchStatus; paused: boolean; dryRun: boolean; decisions: Decision[]; queue: QueueItem[]; current: CardSpec | null }
 export interface Folder { name: string; enabled: boolean; description?: string }
 export interface Thresholds { guardNoul: number; importantQueue: number; needsReplyQueue: number;
@@ -36,7 +37,7 @@ export type SessionEvent =
   | { type: 'queued'; item: QueueItem }
   | { type: 'current'; card: CardSpec | null }
   | { type: 'card_text'; threadId: string; why?: string; summary?: string[] }
-  | { type: 'progress'; read: number; total: number; paused: boolean }
+  | { type: 'progress'; read: number; fetched: number; total: number; paused: boolean }
   | { type: 'status'; status: BatchStatus }
   | { type: 'apply_step'; label: string; count: number; done: boolean }
   | { type: 'error'; message: string };

@@ -171,7 +171,7 @@ function mirror(events: SessionEvent[]): BatchView {
         v.current = e.card;
         if (e.card) v.queue = v.queue.filter((q) => q.threadId !== e.card!.threadId);
         break;
-      case 'progress': v.read = e.read; v.total = e.total; v.paused = e.paused; break;
+      case 'progress': v.read = e.read; v.fetched = e.fetched; v.total = e.total; v.paused = e.paused; break;
       case 'status': v.status = e.status; break;
       default: break;
     }
@@ -368,7 +368,7 @@ describe('real mode', () => {
     const res = await call(`/api/batches/${id}`);
     expect(res.status).toBe(200);
     const v = (await res.json()) as BatchView;
-    expect(v).toMatchObject({ batchId: id, sessionId, status: 'applied', total: 1, read: 1, queue: [], current: null });
+    expect(v).toMatchObject({ batchId: id, sessionId, status: 'applied', total: 1, read: 1, fetched: 1, queue: [], current: null });
     expect(v.decisions).toHaveLength(1);
   });
 
@@ -802,7 +802,7 @@ describe('fix round 1', () => {
 
   test('sessions with no batch (a failed start) are not listed', async () => {
     class BrokenMail extends FakeMail {
-      async fetchBatch(): Promise<Email[]> { throw new Error('gmail down'); }
+      async listCandidates(): Promise<{ threadId: string; latestMessageId: string }[]> { throw new Error('gmail down'); }
     }
     build(staticServices({
       repo, hub, mail: new BrokenMail(fixture), jev: new FakeJev(answers), writer: new FakeWriter(), concurrency: 1,

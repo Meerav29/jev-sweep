@@ -8,8 +8,12 @@ import type { CardText } from '../claude/cardText';
 
 export type StoredEmail = Omit<Email, 'body'>;
 
+export interface StoredCandidate { n: number; threadId: string; latestMessageId: string }
+
 export interface LoadedBatch {
   sessionId: string; batchNo: number; total: number; status: BatchStatus; dryRun: boolean;
+  /** The threads picked when the batch started, in batch order (n = position). Empty for batches older than the table. */
+  candidates: StoredCandidate[];
   emails: { n: number; email: StoredEmail }[];
   jev: Record<string, JevAnswers>;
   text: Record<string, CardText>;
@@ -47,6 +51,10 @@ CREATE TABLE IF NOT EXISTS queue_items (
   n INTEGER NOT NULL, subject TEXT NOT NULL, important INTEGER NOT NULL,
   PRIMARY KEY (batch_id, position));
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS batch_candidates (
+  batch_id TEXT NOT NULL REFERENCES batches(id), n INTEGER NOT NULL, thread_id TEXT NOT NULL,
+  latest_message_id TEXT NOT NULL,
+  PRIMARY KEY (batch_id, thread_id));
 `;
 
 function rowToDecision(r: any): Decision {
@@ -86,13 +94,20 @@ export class Repo {
   }
 
   /** `dryRun` is the batch's starting dry-run setting; it sticks to the batch across resumes. */
-  createBatch(sessionId: string, total: number, dryRun = false): { id: string; batchNo: number } {
+  /** `candidates`, when given, are stored with the batch in one transaction (see saveCandidates). */
+  createBatch(sessionId: string, total: number, dryRun = false,
+    candidates: { threadId: string; latestMessageId: string }[] = []): { id: string; batchNo: number } {
     const id = randomUUID();
-    const row = this.db.prepare('SELECT COALESCE(MAX(batch_no), 0) + 1 AS n FROM batches WHERE session_id = ?')
-      .get(sessionId) as { n: number };
-    this.db.prepare('INSERT INTO batches (id, session_id, batch_no, total, status, created_at, dry_run) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .run(id, sessionId, row.n, total, 'running', new Date().toISOString(), dryRun ? 1 : 0);
-    return { id, batchNo: row.n };
+    let batchNo = 0;
+    this.db.transaction(() => {
+      const row = this.db.prepare('SELECT COALESCE(MAX(batch_no), 0) + 1 AS n FROM batches WHERE session_id = ?')
+        .get(sessionId) as { n: number };
+      batchNo = row.n;
+      this.db.prepare('INSERT INTO batches (id, session_id, batch_no, total, status, created_at, dry_run) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(id, sessionId, row.n, total, 'running', new Date().toISOString(), dryRun ? 1 : 0);
+      this.saveCandidates(id, candidates);
+    })();
+    return { id, batchNo };
   }
 
   setBatchStatus(batchId: string, s: BatchStatus): void {
@@ -102,6 +117,13 @@ export class Repo {
   batchStatus(batchId: string): BatchStatus | undefined {
     const r = this.db.prepare('SELECT status FROM batches WHERE id = ?').get(batchId) as { status: BatchStatus } | undefined;
     return r?.status;
+  }
+
+  /** The batch's thread list as picked at start, so a resume can fetch the ones it never got to. Idempotent. */
+  saveCandidates(batchId: string, list: { threadId: string; latestMessageId: string }[]): void {
+    const ins = this.db.prepare(
+      'INSERT OR REPLACE INTO batch_candidates (batch_id, n, thread_id, latest_message_id) VALUES (?, ?, ?, ?)');
+    this.db.transaction(() => { list.forEach((c, i) => ins.run(batchId, i + 1, c.threadId, c.latestMessageId)); })();
   }
 
   saveEmail(batchId: string, n: number, e: Email): void {
@@ -166,6 +188,9 @@ export class Repo {
         } satisfies StoredEmail,
       }));
 
+    const candidates = (this.db.prepare('SELECT * FROM batch_candidates WHERE batch_id = ? ORDER BY n').all(batchId) as any[])
+      .map((r): StoredCandidate => ({ n: r.n, threadId: r.thread_id, latestMessageId: r.latest_message_id }));
+
     const jev: Record<string, JevAnswers> = {};
     for (const r of this.db.prepare('SELECT thread_id, answers FROM jev_answers WHERE batch_id = ?').all(batchId) as any[]) {
       jev[r.thread_id] = JSON.parse(r.answers);
@@ -183,7 +208,7 @@ export class Repo {
 
     return {
       sessionId: b.session_id, batchNo: b.batch_no, total: b.total, status: b.status, dryRun: b.dry_run === 1,
-      emails, jev, text, decisions, queue, current: b.current,
+      candidates, emails, jev, text, decisions, queue, current: b.current,
     };
   }
 
@@ -198,12 +223,19 @@ export class Repo {
     add(`SELECT d.thread_id FROM decisions d JOIN batches b ON b.id = d.batch_id WHERE b.status != 'discarded' AND ${real}`);
     add(`SELECT d.thread_id FROM decisions d JOIN batches b ON b.id = d.batch_id
       WHERE d.status IN ('auto_applied', 'applied') AND ${real}`);
-    // Open batches keep all their emails, dry run or not.
-    add(`SELECT e.thread_id FROM emails e JOIN batches b ON b.id = e.batch_id WHERE b.status IN ('running', 'reviewing', 'applying')`);
+    // Open batches keep all their emails, dry run or not, and the candidates they have yet to fetch.
+    const open = `b.status IN ('running', 'reviewing', 'applying')`;
+    add(`SELECT e.thread_id FROM emails e JOIN batches b ON b.id = e.batch_id WHERE ${open}`);
+    add(`SELECT c.thread_id FROM batch_candidates c JOIN batches b ON b.id = c.batch_id WHERE ${open}`);
 
+    // Later batches win; within a batch, the fetched email (sorted after its candidate row) wins.
     const out = new Map<string, string>();
-    const rows = this.db.prepare(
-      'SELECT e.thread_id, e.latest_message_id FROM emails e JOIN batches b ON b.id = e.batch_id ORDER BY b.rowid ASC',
+    const rows = this.db.prepare(`
+      SELECT thread_id, latest_message_id FROM (
+        SELECT c.thread_id, c.latest_message_id, b.rowid AS br, 0 AS k FROM batch_candidates c JOIN batches b ON b.id = c.batch_id
+        UNION ALL
+        SELECT e.thread_id, e.latest_message_id, b.rowid AS br, 1 AS k FROM emails e JOIN batches b ON b.id = e.batch_id)
+      ORDER BY br ASC, k ASC`,
     ).all() as { thread_id: string; latest_message_id: string }[];
     for (const r of rows) if (ids.has(r.thread_id)) out.set(r.thread_id, r.latest_message_id);
     return out;

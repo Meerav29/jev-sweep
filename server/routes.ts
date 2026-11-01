@@ -200,7 +200,8 @@ export function apiRoutes(deps: ApiDeps): Hono {
     const lb = repo.loadBatch(batchId);
     const read = new Set([...lb.decisions.map((d) => d.threadId), ...Object.keys(lb.jev)]).size;
     return {
-      sessionId: lb.sessionId, batchId, batchNo: lb.batchNo, total: lb.total, read, status: lb.status,
+      // Nothing fetches for a batch the runner hasn't loaded, so it reads as fully fetched.
+      sessionId: lb.sessionId, batchId, batchNo: lb.batchNo, total: lb.total, read, fetched: lb.total, status: lb.status,
       paused: false, dryRun: lb.dryRun, decisions: lb.decisions, queue: [], current: null,
     };
   }

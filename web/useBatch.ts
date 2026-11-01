@@ -34,7 +34,7 @@ export function reduceBatch(view: BatchView | null, e: SessionEvent): BatchView 
         },
       };
     case 'progress':
-      return { ...view, read: e.read, total: e.total, paused: e.paused };
+      return { ...view, read: e.read, fetched: e.fetched, total: e.total, paused: e.paused };
     case 'status':
       return { ...view, status: e.status };
     default:

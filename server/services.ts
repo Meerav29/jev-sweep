@@ -87,7 +87,7 @@ export function fakeServices(o: Omit<RunnerOpts, 'now'> & {
 class SwitchMail implements MailProvider {
   constructor(public target: MailProvider) {}
   listLabels() { return this.target.listLabels(); }
-  fetchBatch(q: string, n: number, ex: Map<string, string>) { return this.target.fetchBatch(q, n, ex); }
+  listCandidates(q: string, n: number, ex: Map<string, string>) { return this.target.listCandidates(q, n, ex); }
   getThread(t: string) { return this.target.getThread(t); }
   archive(t: string) { return this.target.archive(t); }
   unarchive(t: string) { return this.target.unarchive(t); }

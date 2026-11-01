@@ -51,7 +51,7 @@ const dec = (threadId: string, n: number, dest: Decision['dest'], o: Partial<Dec
   status: 'proposed', ...o,
 });
 const view = (o: Partial<BatchView> = {}): BatchView => ({
-  sessionId: 's', batchId: 'b1', batchNo: 2, total: 4, read: 4, status: 'reviewing', paused: false, dryRun: false,
+  sessionId: 's', batchId: 'b1', batchNo: 2, total: 4, read: 4, fetched: 4, status: 'reviewing', paused: false, dryRun: false,
   decisions: [
     dec('k', 1, 'keep', { who: 'you' }),
     dec('t', 2, 'label:Travel'),
