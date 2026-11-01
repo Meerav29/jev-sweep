@@ -1,24 +1,120 @@
 # jev-sweep
 
-A local app for going through your Gmail inbox a batch at a time. [Jev](https://typesafe.ai/) (TypeSafe's decision model) sorts the emails it's sure about. When it isn't sure, a small generated card pops up with the right context and a question, you answer, and it keeps going.
+jev-sweep is a local app for going through your Gmail inbox a batch at a time. [Jev](https://typesafe.ai/), TypeSafe's decision model, scores each email. The ones it is very sure are junk get archived. For the rest it either proposes a folder or, when it is unsure or the email looks important, puts a small card in a review queue with the context and a question. You answer, and it keeps going. At the end of a batch you get a board of where everything is going, can drag cards to fix it, and then apply the moves.
 
-It's meant to be run on your own machine. Clone it, add your own keys, and run it on localhost.
+It runs on your own machine against your own Gmail, TypeSafe and Anthropic accounts. Nothing is hosted.
 
-## Status
+![A review session](docs/screenshots/session.png)
 
-Early. The design is being worked out, and nothing talks to Gmail yet. You can click through the prototypes in [`docs/prototype/`](docs/prototype/) by opening them in a browser:
+![The end-of-batch board](docs/screenshots/board.png)
 
-- `session-flow.html`: the whole flow (start a session, review queue, end-of-batch board) with a fake inbox and simulated Jev answers
-- `cards.html`: the first sketch of the pop-up cards
-- `animations.html`: the motion ideas
+## Quick start (fake mode)
 
-## How it works (planned)
+Fake mode uses a built-in inbox and simulated answers, so it needs no accounts and no `.env`. It requires Node 22.12 or newer.
 
-- Each email gets one Jev request with a few questions: what to do with it, which folder, is it important, does it need a reply.
-- Anything Jev is very sure is junk gets archived right away. Everything else waits for your approval.
-- Emails Jev is unsure about go into a review queue. Jev keeps sorting while you work through the queue.
-- At the end of a batch you see a board of where everything is going, can drag to fix it, and then approve the moves.
+```sh
+git clone https://github.com/Meerav29/jev-sweep.git
+cd jev-sweep
+npm install
+npm run dev:fake
+```
+
+Open http://localhost:5173 and start a session. The API runs on port 8787 and listens on localhost only. Fake mode keeps its data in `data/fake.db`.
+
+## Setup for your own inbox
+
+Copy `.env.example` to `.env` and fill in the keys below. `.env` and `data/` are git-ignored. Then run `npm run dev` (without `:fake`) and open http://localhost:5173. The Setup screen shows which of the three pieces is still missing.
+
+### TypeSafe
+
+Jev is called through TypeSafe. Create an account and an API key at [typesafe.ai](https://typesafe.ai/) and put it in `.env`:
+
+```
+TYPESAFE_API_KEY=...
+```
+
+`JEV_MODEL` is pinned to a specific version in `.env.example` (`jev-1.14.0`). Leave it pinned so the decisions do not change underneath you.
+
+### Anthropic
+
+Claude writes the one-line "why this needs you" and the short summary on cards. Create a key in the [Anthropic Console](https://console.anthropic.com/) and put it in `.env`:
+
+```
+ANTHROPIC_API_KEY=...
+```
+
+`CLAUDE_MODEL` picks the model (default `claude-haiku-5-5`). If a Claude call fails or takes more than a few seconds, the card is shown without that text.
+
+### Google
+
+jev-sweep reads and changes your mail through the Gmail API, so you need your own OAuth client.
+
+1. Open the [Google Cloud console](https://console.cloud.google.com/) and create a new project.
+2. Enable the **Gmail API** for it.
+3. Open the OAuth consent screen. Choose **External**, leave it in **Testing**, and add your own Google account as a test user.
+4. Go to Credentials, create an OAuth client ID, and choose the type **Web application**.
+5. Add this authorized redirect URI: `http://localhost:8787/api/auth/google/callback`. If you change `JEV_SWEEP_PORT`, change the port here too.
+6. Copy the client ID and secret into `.env`:
+
+```
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+```
+
+Then restart the server and press **Connect Gmail** on the Setup screen. The only scope requested is `https://www.googleapis.com/auth/gmail.modify`.
+
+The app can archive, unarchive, add a label (creating it if needed), star and mark read. It never trashes, deletes or marks spam; the Gmail layer refuses any change that would add the `TRASH` or `SPAM` label.
+
+While the consent screen is in Testing mode, Google expires refresh tokens after 7 days. When Gmail stops working, press Connect Gmail on Setup again.
+
+Other optional settings in `.env`: `WEB_ORIGIN` (where the web app is served, default `http://localhost:5173`), `JEV_SWEEP_PORT` (default 8787; the Vite dev proxy expects 8787), and `JEV_SWEEP_DATA_DIR` (default `data`).
+
+## First real run
+
+Do the first run with dry run on, so you can see what it would do before it touches your inbox.
+
+1. On Home, tick **Dry run (nothing changes in Gmail)**. Pick a small batch size there too, such as 10 or 20.
+2. Start a session and work through the review queue, then look at the board. In a dry-run batch nothing is written to Gmail, including the archives Jev was sure about. Those cards are tagged "dry run".
+3. If the decisions look right, untick dry run and start a new session.
+
+Dry run is fixed when a batch starts, so switching it off does not turn an existing dry-run batch into a live one. In a live batch, only Jev's sure archives move in Gmail while you work. Folder moves wait until you press **Apply** on the board. Apply re-checks each thread in Gmail first and skips any that changed since the batch was fetched (a new message, or you already moved it), so it will not overwrite something you did elsewhere.
+
+The default search is `in:inbox is:unread -category:promotions -category:social`. The query and the confidence thresholds that decide what counts as "sure" are stored in settings and are not in the UI yet; you can change them with the settings API while the server is running, for example:
+
+```sh
+curl -X PUT http://localhost:8787/api/settings \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"in:inbox is:unread"}'
+```
+
+## How the generative UI works
+
+The cards are not free-form model output. Jev's answers go through three fixed steps, and only the middle one describes a card.
+
+1. [`server/policy/decide.ts`](server/policy/decide.ts) takes the Jev answers for one email (the destination choice with its confidence, plus probabilities such as `important`, `needs_reply`, `bulk_marketing`) and your thresholds, and returns an outcome: `auto_archive`, `proposed` (a folder, applied only after you approve the board), or `queue` with a card kind (`filing` or `important`). It is a plain function and is tested without any network.
+2. [`server/cards/toCard.ts`](server/cards/toCard.ts) turns a `queue` outcome into a typed `CardSpec`: sender, subject, a trimmed body, up to three destination options ranked by Jev's probabilities, the optional Claude text, and a link to the thread in Gmail.
+3. [`web/cards/registry.tsx`](web/cards/registry.tsx) maps `CardSpec['kind']` to a hand-written React component. The browser can only draw cards that exist in that registry; the model never produces markup.
+
+Claude's part is limited to the optional one-sentence `why` and summary bullets in `CardSpec`. If they are missing, the card still renders.
+
+## Privacy
+
+Everything runs on your machine. The server listens on `127.0.0.1` only, and the API keys and the Gmail token stay in the server process. The browser never receives them.
+
+Stored locally:
+
+- `data/jev-sweep.db` (SQLite; `data/fake.db` in fake mode). Per email: thread and message IDs, sender name and address, subject, date, Gmail labels and the unread flag. Also Jev's answers, the card text Claude wrote, your decisions, the review queue, your folder list and your settings. **Email bodies are not stored.** They are fetched, used in memory and dropped.
+- `data/google-token.json`, your Google OAuth tokens, written with mode 600 where the platform supports it.
+- `.env`, which you create.
+
+Sent to TypeSafe (Jev), for every email in a batch: sender name and address, subject, date, age in days, Gmail labels, the first 2,000 characters of the body, and the names and descriptions of your enabled folders. The questions it is asked are in [`server/jev/questions.ts`](server/jev/questions.ts).
+
+Sent to Anthropic, only for emails that end up in the review queue (not the ones archived or proposed automatically): subject, sender name and address, the first 2,000 characters of the body, and Jev's top two destinations with the confidence. See [`server/claude/cardText.ts`](server/claude/cardText.ts).
+
+Sent to Google: the Gmail API calls needed to list, read and modify your threads.
+
+Check the data-handling terms of TypeSafe and Anthropic yourself before pointing this at a mailbox with sensitive mail. To remove everything jev-sweep keeps, delete the `data/` folder and revoke the app at https://myaccount.google.com/permissions.
 
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).
