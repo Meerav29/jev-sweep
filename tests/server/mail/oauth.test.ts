@@ -6,7 +6,7 @@ import { expect, test, vi } from 'vitest';
 import { loadConfig } from '../../../server/config';
 import { loadAuth, oauthRoutes } from '../../../server/mail/oauth';
 
-const cfg = loadConfig({ GOOGLE_CLIENT_ID: 'id', GOOGLE_CLIENT_SECRET: 'sec', PORT: '9999' });
+const cfg = loadConfig({ GOOGLE_CLIENT_ID: 'id', GOOGLE_CLIENT_SECRET: 'sec', JEV_SWEEP_PORT: '9999' });
 function setup() {
   const dir = mkdtempSync(join(tmpdir(), 'jev-oauth-'));
   const tokenPath = join(dir, 'sub', 'google-token.json');
