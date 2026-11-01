@@ -306,6 +306,14 @@ test('getThread throwing fails the decision with an apply: note', async () => {
 
 // ---- ruling 6: groups, labels, events ----
 
+test('a step for one thread is worded in the singular', async () => {
+  const id = await batch([{ t: 't1', dest: 'archive' }, { t: 't2', dest: 'label:Travel' }, { t: 't3', dest: 'keep' }]);
+  await applyBatch(deps(), id);
+  expect([...new Set(ofType(id, 'apply_step').map((e) => e.label))]).toEqual([
+    'Archiving 1 thread', 'Labeling 1 → Travel and archiving', 'Leaving 1 in inbox',
+  ]);
+});
+
 test('groups run archive, labels alphabetically, keep, with apply_step and status events around them', async () => {
   const id = await batch([
     { t: 't1', dest: 'keep', opened: true }, { t: 't2', dest: 'label:Travel' }, { t: 't3', dest: 'archive' },

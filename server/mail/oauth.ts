@@ -53,7 +53,7 @@ export function oauthRoutes(config: Config, tokenPath: string, client: OAuth2Cli
   });
 
   app.get('/api/auth/google/callback', async c => {
-    if (c.req.query('error')) return c.redirect('/?auth=error');
+    if (c.req.query('error')) return c.redirect(`${config.webOrigin}/?auth=error`);
     const state = c.req.query('state');
     if (!state || !pendingStates.delete(state)) return c.json({ error: 'Invalid or missing state.' }, 400);
     const code = c.req.query('code');
@@ -63,9 +63,9 @@ export function oauthRoutes(config: Config, tokenPath: string, client: OAuth2Cli
       client.setCredentials(tokens);
       writeTokens(tokenPath, tokens);
     } catch {
-      return c.redirect('/?auth=error');
+      return c.redirect(`${config.webOrigin}/?auth=error`);
     }
-    return c.redirect('/');
+    return c.redirect(`${config.webOrigin}/`);
   });
 
   return app;

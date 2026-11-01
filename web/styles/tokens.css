@@ -1,0 +1,17 @@
+:root {
+  --subtle: #7F7F7F;
+  --default: #5D5D5D;
+  --strong: #292929;
+  --selected: #F5F5F5;
+  --border: #F2F2F2;
+  --line: #E6E6E6;
+  --bg: #fff;
+  /* Red is for important mail only. */
+  --red: #C2362B;
+  --redbg: #FDF1F0;
+  --redline: #F5D3CF;
+  --ease: cubic-bezier(.2, .8, .2, 1);
+  --spring: cubic-bezier(.34, 1.4, .64, 1);
+  --font: "SF Pro Text", "SF Pro", -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+  --gutter: 16px;
+}

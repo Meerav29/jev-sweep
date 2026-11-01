@@ -231,6 +231,15 @@ export class Repo {
     const openStmt = this.db.prepare(
       `SELECT id FROM batches WHERE session_id = ? AND status IN ('running', 'reviewing', 'applying') ORDER BY rowid DESC LIMIT 1`);
 
+    // What a past-session row opens: the newest batch that had emails, else the newest at all (never a discarded one).
+    const lastStmt = this.db.prepare(
+      `SELECT id FROM batches WHERE session_id = ? AND status != 'discarded' ORDER BY (total > 0) DESC, rowid DESC LIMIT 1`);
+
+    // Judged by what the writes did, not the batch flag: dry run can be switched on mid-batch.
+    const dryStmt = this.db.prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(d.note = 'dry run'), 0) AS d
+      FROM decisions d JOIN batches b ON b.id = d.batch_id
+      WHERE b.session_id = ? AND b.status != 'discarded' AND d.status IN ('applied', 'auto_applied')`);
+
     return sessions.map((s) => {
       const bt = batchStmt.get(s.id) as { c: number; t: number };
       const sp = splitStmt.get(s.id) as SessionSummary['split'];
@@ -240,6 +249,11 @@ export class Repo {
         split: { archived: sp.archived, filed: sp.filed, you: sp.you, important: sp.important },
       };
       if (open) out.unfinishedBatchId = open.id;
+      const last = lastStmt.get(s.id) as { id: string } | undefined;
+      if (last) out.lastBatchId = last.id;
+      const dry = dryStmt.get(s.id) as { n: number; d: number };
+      if (dry.n > 0 && dry.d === dry.n) out.dryRun = true;
+      else if (dry.d > 0) out.partlyDryRun = true;
       return out;
     });
   }

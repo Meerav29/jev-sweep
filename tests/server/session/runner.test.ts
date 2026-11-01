@@ -226,11 +226,15 @@ test('reviewing once everything is answered', async () => {
   expect(v.decisions.length).toBe(38);
 });
 
-test('a batch that fetches nothing goes straight to reviewing', async () => {
+test('a batch that fetches nothing goes straight to applied: there is nothing to review', async () => {
   mail = new TestMail([]); runner = makeRunner();
   const id = await runner.start(sessionId); await settle();
   expect(events.map((x) => x.e.type)).toEqual(['snapshot', 'status']);
-  expect(runner.view(id)).toMatchObject({ status: 'reviewing', total: 0, read: 0, current: null });
+  expect(events[1].e).toEqual({ type: 'status', status: 'applied' });
+  expect(runner.view(id)).toMatchObject({ status: 'applied', total: 0, read: 0, current: null });
+  expect(repo.loadBatch(id).status).toBe('applied');
+  // Not left open, so Home stops offering to resume it and a next batch can start.
+  expect(repo.listSessions().find((s) => s.id === sessionId)?.unfinishedBatchId).toBeUndefined();
 });
 
 test('a failed auto-archive is recorded and the pool keeps going', async () => {

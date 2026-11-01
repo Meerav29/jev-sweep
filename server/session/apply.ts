@@ -51,7 +51,7 @@ function processable(d: Decision): boolean {
 const folderOf = (dest: Dest) => (dest.startsWith('label:') ? dest.slice('label:'.length) : null);
 
 function stepLabel(dest: Dest, count: number): string {
-  if (dest === 'archive') return `Archiving ${count} threads`;
+  if (dest === 'archive') return `Archiving ${count} ${count === 1 ? 'thread' : 'threads'}`;
   if (dest === 'keep') return `Leaving ${count} in inbox`;
   return `Labeling ${count} → ${folderOf(dest)} and archiving`;
 }

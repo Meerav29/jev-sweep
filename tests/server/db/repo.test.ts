@@ -168,6 +168,67 @@ describe('Repo', () => {
     expect(s.split).toEqual({ archived: 1, filed: 1, you: 2, important: 1 });
     expect(s.unfinishedBatchId).toBe(live);
     expect(list[0].unfinishedBatchId).toBeUndefined();
+    expect(s.lastBatchId).toBe(live);
+    expect(list[0].lastBatchId).toBeUndefined();
+  });
+
+  it('lastBatchId skips empty batches, unless every batch is empty', () => {
+    const full = repo.createBatch(sid, 3).id;
+    repo.setBatchStatus(full, 'applied');
+    const empty = repo.createBatch(sid, 0).id;
+    repo.setBatchStatus(empty, 'applied');
+    const gone = repo.createBatch(sid, 5).id;
+    repo.setBatchStatus(gone, 'discarded');
+    expect(repo.listSessions().find((s) => s.id === sid)!.lastBatchId).toBe(full);
+
+    const s2 = repo.createSession().id;
+    const e1 = repo.createBatch(s2, 0).id;
+    repo.setBatchStatus(e1, 'applied');
+    const e2 = repo.createBatch(s2, 0).id;
+    repo.setBatchStatus(e2, 'applied');
+    const g2 = repo.createBatch(s2, 4).id;
+    repo.setBatchStatus(g2, 'discarded');
+    expect(repo.listSessions().find((s) => s.id === s2)!.lastBatchId).toBe(e2);
+  });
+
+  it('a session is dry run when every applied or auto-applied decision carries a dry run note', () => {
+    // Started live, dry run switched on mid-batch: the batch flag is false but every write was skipped.
+    const b = repo.createBatch(sid, 3, false).id;
+    repo.saveDecision(b, dec('1', { status: 'applied', note: 'dry run' }));
+    repo.saveDecision(b, dec('2', { status: 'auto_applied', note: 'dry run' }));
+    repo.saveDecision(b, dec('3', { status: 'skipped', note: 'changed in Gmail' }));
+    repo.setBatchStatus(b, 'applied');
+    // A discarded batch's real archive doesn't count.
+    const gone = repo.createBatch(sid, 1, false).id;
+    repo.saveDecision(gone, dec('4', { status: 'auto_applied' }));
+    repo.setBatchStatus(gone, 'discarded');
+    const s1 = repo.listSessions().find((s) => s.id === sid)!;
+    expect(s1.dryRun).toBe(true);
+    expect(s1.partlyDryRun).toBeFalsy();
+
+    const mixed = repo.createSession().id;
+    const m = repo.createBatch(mixed, 2, false).id;
+    repo.saveDecision(m, dec('5', { status: 'auto_applied' }));
+    repo.saveDecision(m, dec('6', { status: 'applied', note: 'dry run' }));
+    repo.setBatchStatus(m, 'applied');
+    const s2 = repo.listSessions().find((s) => s.id === mixed)!;
+    expect(s2.dryRun).toBeFalsy();
+    expect(s2.partlyDryRun).toBe(true);
+
+    const real = repo.createSession().id;
+    const r = repo.createBatch(real, 1, false).id;
+    repo.saveDecision(r, dec('7', { status: 'applied' }));
+    repo.setBatchStatus(r, 'applied');
+    const s3 = repo.listSessions().find((s) => s.id === real)!;
+    expect(s3.dryRun).toBeFalsy();
+    expect(s3.partlyDryRun).toBeFalsy();
+
+    // Nothing applied at all: neither.
+    const none = repo.createSession().id;
+    repo.createBatch(none, 1, true);
+    const s4 = repo.listSessions().find((s) => s.id === none)!;
+    expect(s4.dryRun).toBeFalsy();
+    expect(s4.partlyDryRun).toBeFalsy();
   });
 
   it('settings merge defaults with stored values', () => {
