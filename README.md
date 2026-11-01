@@ -23,7 +23,9 @@ Open http://localhost:5173 and start a session. The API runs on port 8787 and li
 
 ## Setup for your own inbox
 
-Copy `.env.example` to `.env` and fill in the keys below. `.env` and `data/` are git-ignored. Then run `npm run dev` (without `:fake`) and open http://localhost:5173. The Setup screen shows which of the three pieces is still missing.
+Copy `.env.example` to `.env` and fill in the keys below. `.env` and `data/` are git-ignored. Then run `npm run dev` (without `:fake`) and open http://localhost:5173. `.env` is read once when the server starts, so restart after editing it.
+
+The Setup screen is a five-item checklist: TypeSafe key, Anthropic key, Google client, Gmail connected, and Folders chosen. The app stays on Setup until all five are done. Choose folders (the Gmail labels Jev may file into) only works after Gmail is connected, so it is the last step.
 
 ### TypeSafe
 
@@ -37,13 +39,13 @@ TYPESAFE_API_KEY=...
 
 ### Anthropic
 
-Claude writes the one-line "why this needs you" and the short summary on cards. Create a key in the [Anthropic Console](https://console.anthropic.com/) and put it in `.env`:
+Claude writes the helper text on cards (details under Privacy and the generative UI section). Create a key in the [Anthropic Console](https://console.anthropic.com/) and put it in `.env`:
 
 ```
 ANTHROPIC_API_KEY=...
 ```
 
-`CLAUDE_MODEL` picks the model (default `claude-haiku-5-5`). If a Claude call fails or takes more than a few seconds, the card is shown without that text.
+`CLAUDE_MODEL` picks the model (default `claude-haiku-5-5`). Claude writes a "why" line for every queued card, and a short summary only for important cards. If a Claude call fails or takes more than a few seconds, the card is shown without that text.
 
 ### Google
 
@@ -53,7 +55,7 @@ jev-sweep reads and changes your mail through the Gmail API, so you need your ow
 2. Enable the **Gmail API** for it.
 3. Open the OAuth consent screen. Choose **External**, leave it in **Testing**, and add your own Google account as a test user.
 4. Go to Credentials, create an OAuth client ID, and choose the type **Web application**.
-5. Add this authorized redirect URI: `http://localhost:8787/api/auth/google/callback`. If you change `JEV_SWEEP_PORT`, change the port here too.
+5. Add this authorized redirect URI: `http://localhost:8787/api/auth/google/callback`.
 6. Copy the client ID and secret into `.env`:
 
 ```
@@ -61,17 +63,19 @@ GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 ```
 
-Then restart the server and press **Connect Gmail** on the Setup screen. The only scope requested is `https://www.googleapis.com/auth/gmail.modify`.
+Press **Connect Gmail** on the Setup screen. Because the consent screen is in Testing mode, Google shows "Google hasn't verified this app". It is your own OAuth client, so choose Advanced, then Continue. The only scope requested is `https://www.googleapis.com/auth/gmail.modify`.
 
 The app can archive, unarchive, add a label (creating it if needed), star and mark read. It never trashes, deletes or marks spam; the Gmail layer refuses any change that would add the `TRASH` or `SPAM` label.
 
 While the consent screen is in Testing mode, Google expires refresh tokens after 7 days. When Gmail stops working, press Connect Gmail on Setup again.
 
-Other optional settings in `.env`: `WEB_ORIGIN` (where the web app is served, default `http://localhost:5173`), `JEV_SWEEP_PORT` (default 8787; the Vite dev proxy expects 8787), and `JEV_SWEEP_DATA_DIR` (default `data`).
+Other optional settings in `.env`: `WEB_ORIGIN` (where the web app is served, default `http://localhost:5173`), `JEV_SWEEP_PORT` (default 8787), and `JEV_SWEEP_DATA_DIR` (default `data`).
+
+Under `npm run dev` the API port is effectively fixed at 8787, because the Vite proxy in `vite.config.ts` targets it. Changing `JEV_SWEEP_PORT` also means editing `vite.config.ts` and the Google redirect URI.
 
 ## First real run
 
-Do the first run with dry run on, so you can see what it would do before it touches your inbox.
+Do the first run with dry run on, so you can see what it would do before it touches your inbox. Dry run protects Gmail only: email content is still sent to TypeSafe (every email) and Anthropic (queued emails) during a dry run. See Privacy.
 
 1. On Home, tick **Dry run (nothing changes in Gmail)**. Pick a small batch size there too, such as 10 or 20.
 2. Start a session and work through the review queue, then look at the board. In a dry-run batch nothing is written to Gmail, including the archives Jev was sure about. Those cards are tagged "dry run".
@@ -79,12 +83,19 @@ Do the first run with dry run on, so you can see what it would do before it touc
 
 Dry run is fixed when a batch starts, so switching it off does not turn an existing dry-run batch into a live one. In a live batch, only Jev's sure archives move in Gmail while you work. Folder moves wait until you press **Apply** on the board. Apply re-checks each thread in Gmail first and skips any that changed since the batch was fetched (a new message, or you already moved it), so it will not overwrite something you did elsewhere.
 
-The default search is `in:inbox is:unread -category:promotions -category:social`. The query and the confidence thresholds that decide what counts as "sure" are stored in settings and are not in the UI yet; you can change them with the settings API while the server is running, for example:
+The default search is `in:inbox is:unread -category:promotions -category:social`. The query and the confidence thresholds that decide what counts as "sure" are stored in settings and are not in the UI yet; you can change them with the settings API while the server is running. Run `curl http://localhost:8787/api/settings` first to see the field names, then PUT only the fields you want to change:
 
 ```sh
 curl -X PUT http://localhost:8787/api/settings \
   -H 'Content-Type: application/json' \
   -d '{"query":"in:inbox is:unread"}'
+```
+
+This single-quoted form works in Git Bash, WSL, macOS and Linux. In PowerShell:
+
+```powershell
+Invoke-RestMethod -Method Put -Uri http://localhost:8787/api/settings `
+  -ContentType 'application/json' -Body '{"query":"in:inbox is:unread"}'
 ```
 
 ## How the generative UI works
@@ -95,7 +106,7 @@ The cards are not free-form model output. Jev's answers go through three fixed s
 2. [`server/cards/toCard.ts`](server/cards/toCard.ts) turns a `queue` outcome into a typed `CardSpec`: sender, subject, a trimmed body, up to three destination options ranked by Jev's probabilities, the optional Claude text, and a link to the thread in Gmail.
 3. [`web/cards/registry.tsx`](web/cards/registry.tsx) maps `CardSpec['kind']` to a hand-written React component. The browser can only draw cards that exist in that registry; the model never produces markup.
 
-Claude's part is limited to the optional one-sentence `why` and summary bullets in `CardSpec`. If they are missing, the card still renders.
+Claude's part is limited to the optional one-sentence `why` (every queued card) and summary bullets (important cards only) in `CardSpec`. If they are missing, the card still renders.
 
 ## Privacy
 
