@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { SessionSummary, Settings } from '../../shared/types';
+import type { BatchStatus, SessionSummary, Settings } from '../../shared/types';
 import { api } from '../api';
 
 const SIZES: Settings['batchSize'][] = [10, 20, 30, 50];
@@ -7,6 +7,8 @@ const BAR_COLORS = ['#BDBDBD', '#5D5D5D', '#292929', '#C2362B'];
 
 interface Props {
   onSession: (batchId: string) => void;
+  /** A resumed batch that Jev has finished: it opens on the board. */
+  onReview: (batchId: string) => void;
   onPast: (batchId: string) => void;
   onFolders: () => void;
 }
@@ -27,7 +29,10 @@ const when = (iso: string) => {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 };
 
-export function Home({ onSession, onPast, onFolders }: Props) {
+/** Statuses a resumed batch belongs on the board for, not the Session screen. */
+const BOARD_STATUSES: BatchStatus[] = ['reviewing', 'applying', 'applied'];
+
+export function Home({ onSession, onReview, onPast, onFolders }: Props) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [sessions, setSessions] = useState<SessionSummary[] | null>(null);
   const [error, setError] = useState<string | undefined>();
@@ -62,6 +67,19 @@ export function Home({ onSession, onPast, onFolders }: Props) {
 
   const unfinished = sessions?.find((s) => s.unfinishedBatchId)?.unfinishedBatchId;
 
+  const resume = async (batchId: string) => {
+    setStarting(true);
+    setError(undefined);
+    try {
+      const v = await api.resume(batchId);
+      if (BOARD_STATUSES.includes(v.status)) onReview(v.batchId);
+      else onSession(v.batchId);
+    } catch (e) {
+      setError((e as Error).message);
+      setStarting(false);
+    }
+  };
+
   return (
     <main className="screen">
       <div>
@@ -71,7 +89,7 @@ export function Home({ onSession, onPast, onFolders }: Props) {
       {error && <p className="err" role="alert">{error}</p>}
       <div className="start">
         <button className="btn dark" onClick={start} disabled={starting}>Start new session</button>
-        {unfinished && <button className="btn" onClick={() => onSession(unfinished)}>Resume unfinished batch</button>}
+        {unfinished && <button className="btn" disabled={starting} onClick={() => resume(unfinished)}>Resume unfinished batch</button>}
         <div className="seg" role="group" aria-label="Emails per batch">
           {SIZES.map((n) => (
             <button key={n} className={settings?.batchSize === n ? 'on' : ''} aria-pressed={settings?.batchSize === n}

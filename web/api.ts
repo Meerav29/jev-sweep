@@ -1,6 +1,14 @@
 import type { BatchView, Dest, Settings, SessionSummary, SetupStatus } from '../shared/types';
 
-/** Throws an Error carrying the server's `error` message on any non-2xx answer. */
+/** A non-2xx answer: the server's `error` message, plus the HTTP status for callers that branch on it. */
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+/** Throws an ApiError carrying the server's `error` message on any non-2xx answer. */
 async function request<T>(method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown): Promise<T> {
   const init: RequestInit = { method };
   if (method !== 'GET') {
@@ -17,7 +25,7 @@ async function request<T>(method: 'GET' | 'POST' | 'PUT', path: string, body?: u
   }
   if (!res.ok) {
     const msg = data && typeof data === 'object' && 'error' in data ? String((data as { error: unknown }).error) : '';
-    throw new Error(msg || `Request failed (${res.status})`);
+    throw new ApiError(msg || `Request failed (${res.status})`, res.status);
   }
   return data as T;
 }

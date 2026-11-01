@@ -42,4 +42,10 @@
   .qchip { animation: tin .3s var(--spring) both; }
   .qchip, .combo-list li { transition: background .15s var(--ease); }
   .flyer { transition: left .6s var(--spring), top .6s var(--spring), width .6s var(--spring); }
+
+  /* board */
+  .col { transition: background .2s var(--ease); }
+  .board.review .chip { animation: tin .3s var(--ease) both; transition: background .15s var(--ease); }
+  .applying li { animation: tin .25s var(--ease) both; }
+  .moveto { animation: fade .2s var(--ease); }
 }

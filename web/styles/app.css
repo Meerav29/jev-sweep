@@ -26,7 +26,7 @@ a{color:var(--strong)}
 .seg button{border:0;background:none;padding:4px 10px;border-radius:6px;color:var(--subtle);font-size:12px}
 .seg button.on{background:var(--selected);color:var(--strong)}
 .hint{font-size:12px;color:var(--subtle)}
-.past .lbl,.lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--subtle);margin-bottom:8px}
+.past .lbl,.lbl{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--subtle);margin-bottom:8px}
 .prow{display:grid;grid-template-columns:minmax(0,110px) minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 8px;border:0;border-top:1px solid var(--border);border-radius:6px;background:none;width:100%;text-align:left;font:400 13px var(--font);color:var(--default);cursor:pointer}
 .prow:hover{background:var(--selected)}
 .prow .d{font-size:12px;color:var(--subtle)}
@@ -41,7 +41,7 @@ a{color:var(--strong)}
 .checklist{list-style:none;padding:0;border:1px solid var(--line);border-radius:12px;width:100%}
 .checklist li{display:flex;align-items:center;gap:12px;padding:12px 14px;border-top:1px solid var(--border)}
 .checklist li:first-child{border-top:0}
-.checklist .mark{width:18px;height:18px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;font-size:11px;color:var(--subtle);flex:none}
+.checklist .mark{width:18px;height:18px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;font-size:12px;color:var(--subtle);flex:none}
 .checklist .ok .mark{background:var(--strong);border-color:var(--strong);color:#fff}
 .checklist .name{flex:1;min-width:0;color:var(--strong);font-weight:500}
 .checklist .name small{display:block;font-weight:400;color:var(--subtle);font-size:12px}
@@ -169,4 +169,44 @@ a{color:var(--strong)}
   .card{padding:16px}
   .combo{max-width:none;flex-basis:100%}
   .board{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}
+}
+
+/* end-of-batch board */
+.bscreen{min-height:100vh;display:flex;flex-direction:column;gap:16px;padding:28px var(--gutter);max-width:1200px;margin:0 auto;width:100%}
+.bhead{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.bttl{flex:1 1 260px;min-width:0}
+.bttl .back{padding-left:0;margin-bottom:6px}
+.bscreen h1{font-size:24px;font-weight:500;color:var(--strong);letter-spacing:-.01em;overflow-wrap:anywhere}
+.bscreen .sub{color:var(--subtle);margin-top:4px}
+.legend{font-size:12px;color:var(--subtle);display:flex;gap:16px;flex-wrap:wrap}
+.legend span::before{content:"";display:inline-block;width:2px;height:10px;margin-right:6px;background:var(--c);vertical-align:-1px}
+.board-err{text-align:left}
+.moveto{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-height:34px}
+.moveto .mlbl{font-size:12px;color:var(--subtle);min-width:0;overflow-wrap:anywhere}
+.moveto .mlbl b{color:var(--strong);font-weight:500}
+.fpick{flex:1 1 180px;min-width:0;max-width:240px;display:flex}
+.fpick .combo{max-width:none}
+.board.review{grid-template-columns:repeat(auto-fill,minmax(170px,1fr));align-items:start}
+.board.review .col{min-height:200px;max-height:none;overflow:visible}
+.col.over{background:#EBEBEB}
+.board.review .chip{position:relative;display:block;width:100%;text-align:left;padding:6px 8px;font:400 12px var(--font);color:var(--default)}
+.board.review .chip span{display:block;color:var(--subtle);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.board.review .chip .note{white-space:normal;overflow-wrap:anywhere;color:var(--default)}
+.chip.grab{cursor:grab}
+.chip.grab:hover{background:var(--selected)}
+.chip.sel{border-color:var(--strong)}
+.chip.moved{outline:1px dashed var(--strong);outline-offset:-1px}
+.chip.done{background:var(--selected);padding-right:22px}
+.chip.done b{color:var(--subtle);font-weight:400}
+.chip .ck{position:absolute;right:8px;top:6px;font-style:normal;color:var(--subtle)}
+.chip.failed .note{color:var(--strong)}
+.applying{list-style:none;padding:0;font-size:12px;color:var(--subtle);display:flex;flex-direction:column;gap:3px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.actions .btn.dark{padding:9px 18px}
+
+@media (max-width:480px){
+  .bscreen{padding:20px var(--gutter)}
+  .board.review{grid-template-columns:minmax(0,1fr)}
+  .board.review .col{min-height:64px}
+  .fpick{max-width:none;flex-basis:100%}
 }

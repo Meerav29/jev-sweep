@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { SetupStatus } from '../shared/types';
 import { api } from './api';
+import { Board } from './screens/Board';
 import { Folders } from './screens/Folders';
 import { Home } from './screens/Home';
 import { Session } from './screens/Session';
@@ -27,17 +28,31 @@ function takeAuthError(): boolean {
   return true;
 }
 
-/** A session lives in the hash, so reloading mid-batch comes back to the same screen. */
+/** A session, board or receipt lives in the hash, so a reload comes back to the same screen. */
 function routeFromHash(): Route {
-  const m = /^#\/session\/(.+)$/.exec(window.location.hash);
-  return m ? { name: 'session', batchId: decodeURIComponent(m[1]) } : { name: 'home' };
+  const m = /^#\/(session|board|receipt)\/(.+)$/.exec(window.location.hash);
+  if (!m) return { name: 'home' };
+  let batchId: string;
+  try {
+    batchId = decodeURIComponent(m[2]);
+  } catch {
+    return { name: 'home' }; // a mangled hash is not worth an error screen
+  }
+  if (m[1] === 'session') return { name: 'session', batchId };
+  return { name: 'board', batchId, readOnly: m[1] === 'receipt' };
+}
+
+function hashOf(route: Route): string {
+  if (route.name === 'session') return `#/session/${encodeURIComponent(route.batchId)}`;
+  if (route.name === 'board') return `#/${route.readOnly ? 'receipt' : 'board'}/${encodeURIComponent(route.batchId)}`;
+  return '';
 }
 
 export function App() {
   const [route, setRoute] = useState<Route>(routeFromHash);
 
   useEffect(() => {
-    const hash = route.name === 'session' ? `#/session/${encodeURIComponent(route.batchId)}` : '';
+    const hash = hashOf(route);
     if (window.location.hash === hash) return;
     window.history.replaceState(null, '', window.location.pathname + window.location.search + hash);
   }, [route]);
@@ -67,6 +82,10 @@ export function App() {
   if (!setup) return <main className="screen"><p className="hint">Loading…</p></main>;
 
   if (route.name === 'folders') return <Folders onDone={home} />;
+  // Setup comes before any hashed route: a reload with setup undone must not open a batch.
+  if (!complete(setup)) {
+    return <Setup status={setup} authError={authError} onFolders={() => setRoute({ name: 'folders' })} onRecheck={refresh} />;
+  }
   if (route.name === 'session') {
     return (
       <Session batchId={route.batchId} onBack={home}
@@ -74,20 +93,15 @@ export function App() {
     );
   }
   if (route.name === 'board') {
-    // The board arrives in the next task; this keeps the route reachable.
     return (
-      <main className="screen">
-        <p className="sub">Board {route.batchId} is coming soon.</p>
-        <button className="btn" onClick={home}>Back</button>
-      </main>
+      <Board key={`${route.batchId}:${route.readOnly}`} batchId={route.batchId} readOnly={route.readOnly}
+        onHome={home} onSession={(batchId) => setRoute({ name: 'session', batchId })} />
     );
-  }
-  if (!complete(setup)) {
-    return <Setup status={setup} authError={authError} onFolders={() => setRoute({ name: 'folders' })} onRecheck={refresh} />;
   }
   return (
     <Home
       onSession={(batchId) => setRoute({ name: 'session', batchId })}
+      onReview={(batchId) => setRoute({ name: 'board', batchId, readOnly: false })}
       onPast={(batchId) => setRoute({ name: 'board', batchId, readOnly: true })}
       onFolders={() => setRoute({ name: 'folders' })}
     />

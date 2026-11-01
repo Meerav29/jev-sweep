@@ -30,7 +30,8 @@ test('Setup shows a sign-in error line when asked', () => {
 
 function stubApi(sessions: SessionSummary[]) {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-    const body = url === '/api/sessions' ? sessions : url === '/api/settings' ? DEFAULT_SETTINGS : {};
+    const body = url === '/api/sessions' ? sessions : url === '/api/settings' ? DEFAULT_SETTINGS
+      : url.endsWith('/resume') ? { batchId: 'b9', status: 'running' } : {};
     return new Response(JSON.stringify(body), { status: 200 });
   }));
 }
@@ -41,16 +42,16 @@ const summary = (o: Partial<SessionSummary> = {}): SessionSummary => ({
 test('Home shows Resume when a session has an unfinished batch, and resumes that batch', async () => {
   stubApi([summary({ unfinishedBatchId: 'b9', lastBatchId: 'b9' })]);
   const onSession = vi.fn();
-  render(<Home onSession={onSession} onPast={() => {}} onFolders={() => {}} />);
+  render(<Home onSession={onSession} onReview={() => {}} onPast={() => {}} onFolders={() => {}} />);
   const btn = await screen.findByRole('button', { name: 'Resume unfinished batch' });
   btn.click();
-  expect(onSession).toHaveBeenCalledWith('b9');
+  await waitFor(() => expect(onSession).toHaveBeenCalledWith('b9'));
 });
 
 test('Home hides Resume when nothing is unfinished and opens a past session by its last batch', async () => {
   stubApi([summary({ lastBatchId: 'b3' })]);
   const onPast = vi.fn();
-  render(<Home onSession={() => {}} onPast={onPast} onFolders={() => {}} />);
+  render(<Home onSession={() => {}} onReview={() => {}} onPast={onPast} onFolders={() => {}} />);
   const row = await screen.findByText('10 emails');
   expect(screen.queryByRole('button', { name: 'Resume unfinished batch' })).toBeNull();
   row.click();
@@ -59,7 +60,7 @@ test('Home hides Resume when nothing is unfinished and opens a past session by i
 
 test('Home saves the batch size through PUT /api/settings with a JSON body', async () => {
   stubApi([]);
-  render(<Home onSession={() => {}} onPast={() => {}} onFolders={() => {}} />);
+  render(<Home onSession={() => {}} onReview={() => {}} onPast={() => {}} onFolders={() => {}} />);
   const btn = await screen.findByRole('button', { name: '30' });
   await waitFor(() => expect(btn).toHaveProperty('disabled', false));
   btn.click();
