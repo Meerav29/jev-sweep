@@ -25,7 +25,8 @@ export interface Thresholds { guardNoul: number; importantQueue: number; needsRe
 export interface Settings { query: string; batchSize: 10 | 20 | 30 | 50; folders: Folder[]; thresholds: Thresholds; dryRun: boolean }
 export interface SessionSummary { id: string; startedAt: string; batches: number; total: number;
   split: { archived: number; filed: number; you: number; important: number }; unfinishedBatchId?: string;
-  /** The session's newest non-discarded batch: what a past-session row opens. */ lastBatchId?: string }
+  /** The session's newest non-discarded batch with emails (else newest non-discarded): what a past-session row opens. */ lastBatchId?: string;
+  /** Every non-discarded batch with emails was a dry run: nothing in this session changed Gmail. */ dryRun?: boolean }
 export interface SetupStatus { typesafe: boolean; anthropic: boolean; google: boolean; gmailConnected: boolean;
   foldersChosen: boolean; fake: boolean }
 export type SessionEvent =

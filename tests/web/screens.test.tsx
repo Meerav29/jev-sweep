@@ -58,6 +58,15 @@ test('Home hides Resume when nothing is unfinished and opens a past session by i
   await waitFor(() => expect(onPast).toHaveBeenCalledWith('b3'));
 });
 
+test('Home marks a dry-run past session', async () => {
+  stubApi([summary({ id: 'd', lastBatchId: 'b1', dryRun: true }), summary({ id: 'r', lastBatchId: 'b2', total: 7 })]);
+  render(<Home onSession={() => {}} onReview={() => {}} onPast={() => {}} onFolders={() => {}} />);
+  const dryRow = (await screen.findByText('10 emails')).closest('button')!;
+  expect(within(dryRow).getByText('dry run')).toBeTruthy();
+  const realRow = screen.getByText('7 emails').closest('button')!;
+  expect(within(realRow).queryByText('dry run')).toBeNull();
+});
+
 test('Home saves the batch size through PUT /api/settings with a JSON body', async () => {
   stubApi([]);
   render(<Home onSession={() => {}} onReview={() => {}} onPast={() => {}} onFolders={() => {}} />);

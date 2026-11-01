@@ -37,6 +37,8 @@ function readableNote(note: string): string {
 const MOVABLE_BATCH = (v: BatchView) => v.status === 'running' || v.status === 'reviewing';
 const movableDecision = (d: Decision) => d.status === 'proposed' || d.status === 'auto_applied';
 const DRY_RUN_NOTE = "dry run: Gmail won't be changed";
+/** The note apply and the runner leave on a decision that dry run kept out of Gmail. */
+const DRY_RUN = 'dry run';
 
 function errorText(e: unknown, what: 'apply' | 'other'): string {
   if (what === 'apply' && e instanceof ApiError && e.status === 409) return 'Already applying…';
@@ -184,14 +186,17 @@ export function Board({ batchId, readOnly, onHome, onSession }: Props) {
     : `Batch ${view.batchNo} · where everything's going`;
   const applied = view?.status === 'applied';
   const empty = applied && view.total === 0;
-  const sub = applied
-    ? (dryRun ? 'Dry run: nothing was changed in Gmail.' : 'These moves have been applied in Gmail.')
+  // A dry-run receipt must never pass for a real one, so it says so even read-only.
+  const sub = dryRun && (applied || readOnly) ? 'Dry run: nothing was changed in Gmail.'
+    : applied ? 'These moves have been applied in Gmail.'
     : `Drag a card to change where it goes. Nothing has moved in Gmail yet.${dryRun ? ` (${DRY_RUN_NOTE})` : ''}`;
   const shownError = actionError ?? error;
 
   const renderChip = (d: Decision) => {
     const movable = isMovable(d);
-    const done = d.status === 'applied' || (d.status === 'auto_applied' && d.dest === 'archive');
+    // A dry-run note means Gmail was never touched: never drawn as done, tagged instead.
+    const dry = d.note === DRY_RUN && (d.status === 'applied' || (d.status === 'auto_applied' && d.dest === 'archive'));
+    const done = !dry && (d.status === 'applied' || (d.status === 'auto_applied' && d.dest === 'archive'));
     const isMoved = moved.has(d.threadId) || isMovedAuto(d);
     const cls = ['chip',
       d.important ? 'red' : d.who === 'you' ? 'you' : '',
@@ -207,6 +212,7 @@ export function Board({ batchId, readOnly, onHome, onSession }: Props) {
         {done && <i className="ck" aria-hidden="true">✓</i>}
         <b>{d.subject}</b>
         <span>{d.fromName}{d.who === 'you' ? ' · you chose' : ''}{done ? <span className="sr-only"> · done</span> : null}</span>
+        {dry && <span className="tag">dry run</span>}
         {(d.status === 'skipped' || d.status === 'failed') && d.note && (
           <span className="note">{d.status === 'failed' ? 'Failed: ' : 'Skipped: '}{readableNote(d.note)}</span>
         )}
@@ -246,7 +252,7 @@ export function Board({ batchId, readOnly, onHome, onSession }: Props) {
         <div className="bttl">
           <button type="button" className="btn ghost back" onClick={onHome}>← Sessions</button>
           <h1>{title}</h1>
-          {!readOnly && <p className="sub">{sub}</p>}
+          {(!readOnly || dryRun) && <p className="sub">{sub}</p>}
         </div>
         <div className="legend" data-testid="legend">
           <span style={{ ['--c' as string]: 'var(--strong)' }}>you decided</span>

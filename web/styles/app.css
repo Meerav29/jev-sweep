@@ -198,6 +198,8 @@ a{color:var(--strong)}
 .chip.moved{outline:1px dashed var(--strong);outline-offset:-1px}
 .chip.done{background:var(--selected);padding-right:22px}
 .chip.done b{color:var(--subtle);font-weight:400}
+.board.review .chip .tag{display:inline-block;margin-top:3px;border:1px solid var(--line);border-radius:4px;padding:0 5px;color:var(--subtle);font-size:12px}
+.prow .tag{font-size:12px;color:var(--subtle);border:1px solid var(--line);border-radius:4px;padding:0 5px;margin-left:6px;white-space:nowrap}
 .chip .ck{position:absolute;right:8px;top:6px;font-style:normal;color:var(--subtle)}
 .chip.failed .note{color:var(--strong)}
 .applying{list-style:none;padding:0;font-size:12px;color:var(--subtle);display:flex;flex-direction:column;gap:3px}

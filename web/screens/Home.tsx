@@ -104,7 +104,7 @@ export function Home({ onSession, onReview, onPast, onFolders }: Props) {
         {sessions?.map((s) => (
           <button key={s.id} className="prow" disabled={!s.lastBatchId} onClick={() => s.lastBatchId && onPast(s.lastBatchId)}>
             <span className="d">{when(s.startedAt)}</span>
-            <span><b>{s.total} emails</b> · {s.batches} batch{s.batches === 1 ? '' : 'es'}</span>
+            <span><b>{s.total} emails</b> · {s.batches} batch{s.batches === 1 ? '' : 'es'}{s.dryRun && <span className="tag">dry run</span>}</span>
             <SplitBar split={s.split} total={s.total} />
           </button>
         ))}

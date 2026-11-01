@@ -191,6 +191,25 @@ describe('Repo', () => {
     expect(repo.listSessions().find((s) => s.id === s2)!.lastBatchId).toBe(e2);
   });
 
+  it('a session is marked dry run only when every non-discarded batch with emails was', () => {
+    const dry = repo.createBatch(sid, 3, true).id;
+    repo.setBatchStatus(dry, 'applied');
+    const emptyReal = repo.createBatch(sid, 0, false).id;
+    repo.setBatchStatus(emptyReal, 'applied');
+    const goneReal = repo.createBatch(sid, 4, false).id;
+    repo.setBatchStatus(goneReal, 'discarded');
+    expect(repo.listSessions().find((s) => s.id === sid)!.dryRun).toBe(true);
+
+    const mixed = repo.createSession().id;
+    repo.setBatchStatus(repo.createBatch(mixed, 2, true).id, 'applied');
+    repo.setBatchStatus(repo.createBatch(mixed, 2, false).id, 'applied');
+    expect(repo.listSessions().find((s) => s.id === mixed)!.dryRun).toBeFalsy();
+
+    const real = repo.createSession().id;
+    repo.setBatchStatus(repo.createBatch(real, 2, false).id, 'applied');
+    expect(repo.listSessions().find((s) => s.id === real)!.dryRun).toBeFalsy();
+  });
+
   it('settings merge defaults with stored values', () => {
     expect(repo.getSettings()).toEqual(DEFAULT_SETTINGS);
     const out = repo.saveSettings({ dryRun: true });

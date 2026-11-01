@@ -235,6 +235,9 @@ export class Repo {
     const lastStmt = this.db.prepare(
       `SELECT id FROM batches WHERE session_id = ? AND status != 'discarded' ORDER BY (total > 0) DESC, rowid DESC LIMIT 1`);
 
+    const dryStmt = this.db.prepare(
+      `SELECT COUNT(*) AS n, COALESCE(SUM(dry_run = 1), 0) AS d FROM batches WHERE session_id = ? AND status != 'discarded' AND total > 0`);
+
     return sessions.map((s) => {
       const bt = batchStmt.get(s.id) as { c: number; t: number };
       const sp = splitStmt.get(s.id) as SessionSummary['split'];
@@ -246,6 +249,8 @@ export class Repo {
       if (open) out.unfinishedBatchId = open.id;
       const last = lastStmt.get(s.id) as { id: string } | undefined;
       if (last) out.lastBatchId = last.id;
+      const dry = dryStmt.get(s.id) as { n: number; d: number };
+      if (dry.n > 0 && dry.d === dry.n) out.dryRun = true;
       return out;
     });
   }

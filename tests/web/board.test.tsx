@@ -388,6 +388,43 @@ test('Apply shows only while reviewing', async () => {
   await settle();
 });
 
+// ---- dry run is never drawn as done ----
+
+test('a read-only dry-run receipt says so, and its dry-run chips are not done', async () => {
+  mount({ readOnly: true });
+  FakeES.last!.emit({ type: 'snapshot', view: view({ status: 'applied', dryRun: true, decisions: [
+    dec('a', 1, 'archive', { status: 'auto_applied', note: 'dry run' }),
+    dec('t', 2, 'label:Travel', { status: 'applied', note: 'dry run' }),
+  ] }) });
+  expect(screen.getByText('Dry run: nothing was changed in Gmail.')).toBeTruthy();
+  for (const s of ['subject a', 'subject t']) {
+    const c = chip(s);
+    expect(c.className).not.toContain('done');
+    expect(c.textContent).not.toContain('✓');
+    expect(c.textContent).not.toMatch(/done/);
+    expect(within(c).getByText('dry run')).toBeTruthy();
+  }
+  await waitFor(() => expect(calls.some((c) => c.url === '/api/sessions')).toBe(true));
+});
+
+test('on the live board a dry-run chip gets a dry-run tag, while a real applied chip stays done', async () => {
+  mount();
+  FakeES.last!.emit({ type: 'snapshot', view: view({ status: 'applied', decisions: [
+    dec('d', 1, 'archive', { status: 'applied', note: 'dry run' }),
+    dec('r', 2, 'archive', { status: 'applied' }),
+    dec('a', 3, 'archive', { status: 'auto_applied' }),
+  ] }) });
+  expect(chip('subject d').className).not.toContain('done');
+  expect(chip('subject d').textContent).not.toContain('✓');
+  expect(within(chip('subject d')).getByText('dry run')).toBeTruthy();
+  for (const s of ['subject r', 'subject a']) {
+    expect(chip(s).className).toContain('done');
+    expect(chip(s).textContent).toContain('✓');
+    expect(within(chip(s)).queryByText('dry run')).toBeNull();
+  }
+  await settle();
+});
+
 // ---- resume (Home) ----
 
 test('Resume asks the server, then opens the Session screen for a running batch', async () => {
